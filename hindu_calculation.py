@@ -1,6 +1,6 @@
 import numpy as np
 from matplotlib.figure import Figure
-
+import matplotlib.pyplot as plt
 
 def newmark_int(time, force, u0, udot0, mass, stiffness, damp):
 
@@ -214,7 +214,9 @@ class LffResponse:
                     else:
                         ms = mode_shape[mode-1]
                         for node in range(len(t)):
-                            modescale[counter][node] = ms(path[0][node], path[1][node])
+                            x_coord = path[0][node]
+                            y_coord = path[1][node]
+                            modescale[counter][node] = ms((x_coord, y_coord))  # Ensure tuple format
                             modal_force[harmonic][node] = force.force[harmonic][node] * modescale[counter][node]
                         [y[harmonic][counter][:], ydot[harmonic][counter][:], y2dot[harmonic][counter][:]] = \
                             newmark_int(t, modal_force[harmonic][:], y0, ydot0, floor.modal_mass[mode-1], floor.modal_stiffness[mode-1],
@@ -300,6 +302,7 @@ class HffResponse:
             self.displacement_harm[0][:][:] = y
             self.velocity_harm[0][:][:] = ydot
             self.acceleration_harm[0][:][:] = y2dot
+            print(self.acceleration_harm[0][:][:])
 
 
 class Stana:
@@ -366,7 +369,6 @@ class ModalAnalysis:
         self.velocity_harm = response.velocity_harm
         self.acceleration_harm = response.acceleration_harm
 
-
 class Response:
 
     def __init__(self, y, mode_shape_value):
@@ -398,6 +400,41 @@ class Velocity(Response):
 
 class Acceleration(Response):
     pass
+
+
+def plot_max_abs_mode_response(x, y, max_accelerations, modes, type_to_plot):
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    max_accelerations_matrix = np.array(max_accelerations)
+    for i, mode in enumerate(modes):
+        ax.plot_trisurf(x.flatten(), y.flatten(), max_accelerations_matrix[:, mode, 0], label="MODE " + str(mode))
+    ax.set_zlabel(type_to_plot)
+    ax.legend()
+    return fig
+
+
+def plot_max_abs_all_response(x, y, max_accelerations, modes, total_accelerations, type_to_plot):
+    fig = Figure()
+    ax = fig.add_subplot(projection='3d')
+    ax.plot_trisurf(x, y, total_accelerations, label="Total response")
+    max_accelerations_matrix = np.array(max_accelerations)
+    for i, mode in enumerate(modes):
+        ax.plot_trisurf(x.flatten(), y.flatten(), max_accelerations_matrix[:, mode, 0], label="MODE " + str(mode))
+    ax.set_zlabel(type_to_plot)
+    ax.legend()
+    return fig
+
+
+def plot_max_abs_total_response(x, y, max_to_plot, type_to_plot, plot_rms, rms):
+    fig = Figure()
+    ax = fig.add_subplot(projection='3d')
+    ax.plot_trisurf(x, y, max_to_plot, cmap='jet')
+    if plot_rms and type_to_plot != 'Z [m]':
+        ax.plot_trisurf(x, y, rms, cmap='inferno')
+    ax.set_xlabel('X [m]', labelpad=10)
+    ax.set_ylabel('Y [m]', labelpad=10)
+    ax.set_zlabel(type_to_plot, labelpad=10)
+    return fig
 
 
 def plot_total_response(type, response, time):
@@ -494,39 +531,30 @@ class MovingAverage1s:
     def __init__(self, a, t, mode_scale):
 
         number_of_harmonics = len(a)
-
-        nmodes = len(a[1])
+        nmodes = len(a[0])
 
         a_harm = np.zeros((number_of_harmonics, len(t)))
-
-        for harmonic in range(number_of_harmonics):
-            for mode in range(nmodes):
-                a_harm[harmonic][:] = a_harm[harmonic][:] + a[harmonic][mode][:] * mode_scale[mode]
+        for mode in range(nmodes):
+            a_harm += a[:, mode, :] * mode_scale[mode]
 
         time = 1
         dt = t[1] - t[0]
-        n = int(len(t) - time / dt)  # broj rms-a koje se mogu izvesti
+        n = int(len(t) - time / dt)
 
-        acc = np.zeros((number_of_harmonics, int(time / dt + 1)))  # vektor ubrzanja u okviru perioda T za sve harmonike
-        average_harmonic = np.zeros((number_of_harmonics, n))  # moving average za sve harmonike
+        acc = np.zeros((number_of_harmonics, int(time / dt + 1)))
+        average_harmonic = np.zeros((number_of_harmonics, n))
         time_vector = np.zeros((number_of_harmonics, n))
 
         for harmonic in range(number_of_harmonics):
             for i in range(n):
-                # PROVERITI SA MARIJOM DA LI SE DOBIJAJU ISTE VREDNOSTI
-                # for j in range(len(acc[1])):
-                #     acc[harmonic][j] = a_harm[harmonic][i + j - 1]
-                acc[harmonic] = a_harm[harmonic, i: i + len(acc[1])]
-                average_harmonic[harmonic][i] = np.sqrt(np.mean(acc[harmonic][:] ** 2))
-                time_vector[harmonic][i] = t[i]
+                acc[harmonic] = a_harm[harmonic, i:i + len(acc[0])]
+                average_harmonic[harmonic, i] = np.sqrt(np.mean(acc[harmonic] ** 2))
+                time_vector[harmonic, i] = t[i]
 
-        average = np.zeros(n)
+        moving_average = np.sqrt(np.sum(average_harmonic ** 2, axis=0))
 
-        for harmonic in range(number_of_harmonics):
-            average = average + (average_harmonic[harmonic][:]) ** 2
-
-        self.moving_average = np.sqrt(average)
-        self.time = time_vector[0][:]
+        self.moving_average = moving_average
+        self.time = time_vector[0]
 
 
 class MovingAverage1step:

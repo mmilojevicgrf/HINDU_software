@@ -53,11 +53,40 @@ class MainWindow(QtWidgets.QMainWindow):
                                                       self.walking_frequency)
         self.time_domain_response.show()
 
+    def _plots_3d_results_window(self):
+        self.plots_3d_response = Plots3DResults(self.response, self.floor, self.time_vector, self.modes,
+                                                self.walking_frequency)
+        self.plots_3d_response.show()
+
     def _input_files(self):
         self.dat_file = self.load_geometry_modes_tab.dat
         self.rpts = self.load_geometry_modes_tab.rpts
 
+    def _update_model_name(self):
+        # Uncheck all force model actions
+        for action in self.force_tab.actions():
+            action.setChecked(False)
+
+        # Check the triggered action or default to Kerr if no action is triggered
+        sender = self.sender() if self.sender() else self.kerr_force
+        sender.setChecked(True)
+
+        # Update the menu title based on the selected action
+        model_name = sender.text()
+        self.force_tab.setTitle(f"&Model = {model_name}")
+
     def _create_menu(self):
+        # Initialize attributes
+        self.default_model = "Kerr"
+        self.force_input = self.default_model
+        self.floor = None
+        self.damping = None
+        self.path_start = None
+        self.response = None
+        self.time_vector = None
+
+        self.menuBar().setNativeMenuBar(False)  # Necessary for some environments
+
         file_tab = self.menuBar().addMenu("&File")
         file_tab.addAction("&Exit", self.close)
 
@@ -71,25 +100,32 @@ class MainWindow(QtWidgets.QMainWindow):
         floor_tab.addAction(self.walking_path_option)
         self.walking_path_option.setDisabled(True)
 
-        self.force_tab = self.menuBar().addMenu("&Force model")
+        self.force_tab = self.menuBar().addMenu(f"&Model = {self.default_model}")
         self.force_tab.setDisabled(True)
 
         self.kerr_force = QAction("Kerr", self)
         self.kerr_force.setCheckable(True)
-
+        self.kerr_force.setChecked(True)
+        self.kerr_force.triggered.connect(self._update_model_name)
         self.force_tab.addAction(self.kerr_force)
 
         self.rainer_force = QAction("Rainer", self)
         self.rainer_force.setCheckable(True)
+        self.rainer_force.triggered.connect(self._update_model_name)
         self.force_tab.addAction(self.rainer_force)
 
         self.zivanovic_force = QAction("Živanović", self)
         self.zivanovic_force.setCheckable(True)
+        self.zivanovic_force.triggered.connect(self._update_model_name)
         self.force_tab.addAction(self.zivanovic_force)
 
         self.arup_force = QAction("Arup", self)
         self.arup_force.setCheckable(True)
+        self.arup_force.triggered.connect(self._update_model_name)
         self.force_tab.addAction(self.arup_force)
+
+        # Ensure the default model ("Kerr") is triggered and checked on init
+        self._update_model_name()
 
         self.results_tab = self.menuBar().addMenu("&Response diagrams")
         self.results_tab.setDisabled(True)
@@ -97,6 +133,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.time_domain_tab = QAction("&Time domain", self)
         self.time_domain_tab.triggered.connect(self._time_domain_results_window)
         self.results_tab.addAction(self.time_domain_tab)
+
+        self.plots_3d_tab = QAction("& 3D plots", self)
+        self.plots_3d_tab.triggered.connect(self._plots_3d_results_window)
+        self.results_tab.addAction(self.plots_3d_tab)
 
         self.options_tab = self.menuBar().addMenu("&Options")
         self.options_tab.setDisabled(True)
@@ -111,7 +151,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.start_note.deleteLater()
         self.list_widget = QtWidgets.QListWidget()
         for mode in range(np.size(self.load_geometry_modes_tab.rpts)):
-            line = QtWidgets.QListWidgetItem("Mode  "+str(mode+1))
+            line = QtWidgets.QListWidgetItem("Mode  " + str(mode + 1))
             self.list_widget.addItem(line)
         self.list_widget.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.MultiSelection)
         scroll_bar = QtWidgets.QScrollBar(self)
@@ -152,18 +192,28 @@ class MainWindow(QtWidgets.QMainWindow):
         box.setLayout(ip_layout)
 
         self.input_weight = QtWidgets.QLineEdit(box)
+        default_weight = "80"
+        self.input_weight.setPlaceholderText(default_weight)
         ip_layout.addRow("Pedestrian Weight [N]:", self.input_weight)
 
         self.input_step = QtWidgets.QLineEdit(box)
+        default_step = "0.8"
+        self.input_step.setPlaceholderText(default_step)
         ip_layout.addRow("Step Length [m]:", self.input_step)
 
         self.input_time = QtWidgets.QLineEdit(box)
+        default_input_time = "0.001"
+        self.input_time.setPlaceholderText(default_input_time)
         ip_layout.addRow("Time Increment [s]:", self.input_time)
 
         self.input_frequency = QtWidgets.QLineEdit(box)
+        default_frequency = "2.2"
+        self.input_frequency.setPlaceholderText(default_frequency)
         ip_layout.addRow("Walking Frequency [Hz]:", self.input_frequency)
 
         self.input_damp = QtWidgets.QLineEdit(box)
+        default_damp = "5"
+        self.input_damp.setPlaceholderText(default_damp)
         ip_layout.addRow("Damping ratio [%]:", self.input_damp)
 
         self.main_layout.addWidget(box, 1, 0)
@@ -203,7 +253,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.calculate_button = QtWidgets.QPushButton("Calculate")
         self.calculate_button.setFixedSize(100, 30)
-        self.calculate_button.setDisabled(True)
+        self.calculate_button.setDisabled(False)
         self.calculate_button.clicked.connect(self._calculate)
         self.calculate_button.clicked.connect(self._delete_mode_shapes_canvas)
 
@@ -240,7 +290,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.main_layout.addLayout(self.canvas_layout, 0, 1, 3, 3)
         self.setLayout(self.main_layout)
 
-
     def _mode_plus_one(self):
         widget = QtWidgets.QWidget()
         while self.text_layout.count():
@@ -251,7 +300,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 widget.deleteLater()
         self.main_layout.removeItem(self.text_layout)
         self.main_layout.removeWidget(self.plot)
-        if self.mode == len(self.floor.frequency)-1:
+        if self.mode == len(self.floor.frequency) - 1:
             self.mode = 0
         else:
             self.mode = self.mode + 1
@@ -268,7 +317,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.main_layout.removeItem(self.text_layout)
         self.main_layout.removeWidget(self.plot)
         if self.mode == 0:
-            self.mode = len(self.floor.frequency)-1
+            self.mode = len(self.floor.frequency) - 1
         else:
             self.mode = self.mode - 1
         self._plot_canvas()
@@ -325,10 +374,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def _data_entry(self):
 
         if self.input_weight.text() == '':
-            self.input_weight.setStyleSheet("QLineEdit"
-                                            "{"
-                                            "background : red;"
-                                            "}")
+            self.weight = 80
         else:
             self.input_weight.setStyleSheet("QLineEdit"
                                             "{"
@@ -337,10 +383,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.weight = float(self.input_weight.text())
 
         if self.input_step.text() == '':
-            self.input_step.setStyleSheet("QLineEdit"
-                                          "{"
-                                          "background : red;"
-                                          "}")
+            self.step = 0.8
         else:
             self.input_step.setStyleSheet("QLineEdit"
                                           "{"
@@ -349,10 +392,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.step = float(self.input_step.text())
 
         if self.input_time.text() == '':
-            self.input_time.setStyleSheet("QLineEdit"
-                                          "{"
-                                          "background : red;"
-                                          "}")
+            self.increment = 0.001
         else:
             self.input_time.setStyleSheet("QLineEdit"
                                           "{"
@@ -361,10 +401,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.increment = float(self.input_time.text())
 
         if self.input_frequency.text() == '':
-            self.input_frequency.setStyleSheet("QLineEdit"
-                                               "{"
-                                               "background : red;"
-                                               "}")
+            self.walking_frequency = 2.2
         else:
             self.input_frequency.setStyleSheet("QLineEdit"
                                                "{"
@@ -373,16 +410,13 @@ class MainWindow(QtWidgets.QMainWindow):
             self.walking_frequency = float(self.input_frequency.text())
 
         if self.input_damp.text() == '':
-            self.input_damp.setStyleSheet("QLineEdit"
-                                          "{"
-                                          "background : red;"
-                                          "}")
+            self.damping = 5
         else:
             self.input_damp.setStyleSheet("QLineEdit"
                                           "{"
                                           "background : white;"
                                           "}")
-            self.damping = float(self.input_damp.text())/100
+            self.damping = float(self.input_damp.text()) / 100
 
         self.path_start = ([float(self.start_point_x.text()), float(self.start_point_y.text())])
         self.path_end = ([float(self.end_point_x.text()), float(self.end_point_y.text())])

@@ -1,9 +1,16 @@
 import math
-from scipy.interpolate import LinearNDInterpolator
-# from matplotlib import cm
+from scipy.interpolate import RegularGridInterpolator
 from hindu_calculation import *
+
 np.seterr(divide='ignore')
 import matplotlib.pyplot as plt
+
+XCoord = None
+YCoord = None
+
+
+def get_cord():
+    return globals()["Xcoord"], globals()["Ycoord"]
 
 
 def read_files(filepath):
@@ -11,13 +18,13 @@ def read_files(filepath):
     rpt_files = rpt_files_series.tolist()
     dat_files_series = filepath[filepath.str.endswith(".dat")]
     dat_files = dat_files_series.tolist()
-    if len(dat_files) > 1 :
+    if len(dat_files) > 1:
         print(f"More than one .dat file loaded! .dat files: {dat_files} ")
     dat_file = dat_files[0]
     return dat_file, rpt_files, str(dat_file)
 
-def floor_geometry(NNode, rpt_file):
 
+def floor_geometry(NNode, rpt_file):
     rpt = open(rpt_file, "r")
     rpt_lines = rpt.read().splitlines()
     rpt.close()
@@ -28,19 +35,13 @@ def floor_geometry(NNode, rpt_file):
         coordinates[node, 0] = float(line[2])
         coordinates[node, 1] = float(line[3])
 
-    Xcoord = coordinates[:, 0]
-    Ycoord = coordinates[:, 1]
+    globals()["Xcoord"] = coordinates[:, 0]
+    globals()["Ycoord"] = coordinates[:, 1]
 
-    # print(Xcoord)
-    # print(Ycoord)
-    # print(NNode)
-    # print(rpt_file)
-
-    return Xcoord, Ycoord
+    return globals()["Xcoord"], globals()["Ycoord"]
 
 
 def modal_characteristics(dat_file, rpt_files):
-
     dat_file = open(dat_file, "r")
     rows = dat_file.read().splitlines()
     dat_file.close()
@@ -81,29 +82,27 @@ def modal_characteristics(dat_file, rpt_files):
 
 
 class Floor:
-
     """Klasa Floor sadrzi sve geometrijske i materijalne karakteristike tavanice ucitane iz Abaqusa"""
 
     def __init__(self, dat_file, rpt_files):
-
         self.NNode, self.frequency, self.modal_mass, self.m_shapes = modal_characteristics(dat_file, rpt_files)
         self.x_coord, self.y_coord = floor_geometry(self.NNode, rpt_files[0])
         self.modal_stiffness = (2 * np.pi * self.frequency) ** 2 * self.modal_mass
+        self.xy = np.column_stack((self.x_coord, self.y_coord))
+        self.x = np.unique(self.xy[:, 0])
+        self.y = np.unique(self.xy[:, 1])
 
-    def mode_shape_value(self, mode_number, point):  # vrednost mode shape - a u tacki
+    def mode_shape_value(self, mode_number, point):
+        values = self.m_shapes[mode_number].reshape(len(self.x), len(self.y))
+        mode_interpolator = RegularGridInterpolator((self.x, self.y), values)
+        return mode_interpolator((point[0], point[1]))
 
-        xy = np.column_stack((self.x_coord, self.y_coord))
-        mode = LinearNDInterpolator(xy, self.m_shapes[mode_number][:])
-        return mode(point[0], point[1])
-
-    def mode_shapes_function(self, mode_number):  # funkcija oblika oscilovanja
-
-        xy = np.column_stack((self.x_coord, self.y_coord))
-        mode = LinearNDInterpolator(xy, self.m_shapes[mode_number][:])
-        return mode
+    def mode_shapes_function(self, mode_number):
+        values = self.m_shapes[mode_number].reshape(len(self.x), len(self.y))
+        mode_interpolator = RegularGridInterpolator((self.x, self.y), values)
+        return mode_interpolator
 
     def plot(self, mode_number):
-
         mshape_to_plot = self.m_shapes[mode_number]
         fig = Figure()
         a = fig.add_subplot(1, 1, 1, projection='3d')
@@ -112,7 +111,6 @@ class Floor:
         return fig
 
     def geometry(self):
-
         fig = plt.figure()
         a = fig.add_subplot()
 
@@ -131,7 +129,6 @@ class Floor:
         return fig, a
 
     def mode_scale(self, modes, recipient):
-
         ModeScale = np.zeros(len(modes))
         counter = 0
 
@@ -143,7 +140,6 @@ class Floor:
 
 
 class Path:
-
     """Klasa Path racuna pravolinijsku putanju pesaka definisanu pocetnom i krajnjom tackom"""
 
     def __init__(self, start, finish):
@@ -171,15 +167,15 @@ class Path:
 
         else:
             if (finish[1] - start[1]) > 0:
-                self.angle = np.pi/2
+                self.angle = np.pi / 2
             else:
-                self.angle = 3 * np.pi/2
+                self.angle = 3 * np.pi / 2
 
     def lff_path(self, vp, t):
 
         path = np.zeros((2, len(t)))  # Putanja pesaka definisana u svakoj tacki vremenskog inkrementa
         path[0][:] = self.start[0] + vp * t * np.cos(self.angle)
-        path[1][:] = self. start[1] + vp * t * np.sin(self.angle)
+        path[1][:] = self.start[1] + vp * t * np.sin(self.angle)
 
         return path
 
@@ -215,7 +211,6 @@ def time_vector(length, speed, dt):
 
 
 def floor_type(force_model, f1):
-
     if force_model == "Kerr" or force_model == "Rainer":
         limit_frequency = 10
     elif force_model == "Arup":
@@ -236,7 +231,6 @@ def floor_type(force_model, f1):
 
 
 def foot_path(flr_type, path, pedestrian, t):
-
     if flr_type == "LFF":
         footpath = path.lff_path(pedestrian.speed, t)
     elif flr_type == "HFF":
@@ -250,7 +244,6 @@ def foot_path(flr_type, path, pedestrian, t):
 
 
 def calculation(floor, force_input, zetta, start, finish, modes, fp, Go, stepLength, dt):
-
     path = Path(start, finish)
     pedestrian = Pedestrian(fp, Go, stepLength)
 
