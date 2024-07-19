@@ -1,4 +1,3 @@
-from PySide6 import QtGui
 from PySide6.QtGui import QAction
 from menu_floor_tab import *
 from results_tab import *
@@ -166,7 +165,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ms_layout.addWidget(select_all)
 
     def _selection_of_modes(self):
-        self.modes = [i for i, _ in enumerate(self.rpts)]
+        modes = [x.row() for x in self.list_widget.selectedIndexes()]
+        self.modes = [x + 1 for x in modes]
 
     def _select_all(self):
         self.list_widget.selectAll()
@@ -192,7 +192,7 @@ class MainWindow(QtWidgets.QMainWindow):
         box.setLayout(ip_layout)
 
         self.input_weight = QtWidgets.QLineEdit(box)
-        default_weight = "80"
+        default_weight = "800"
         self.input_weight.setPlaceholderText(default_weight)
         ip_layout.addRow("Pedestrian Weight [N]:", self.input_weight)
 
@@ -346,7 +346,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _text_canvas(self):
         self.text_layout = QtWidgets.QVBoxLayout()
-        text1 = "Mode number:   " + str(self.mode + 1)
+        text1 = "Mode number:   " + str(self.mode +1)
         text2 = "Frequency is:   " + str(self.floor.frequency[self.mode]) + "  Hz"
         text3 = "Modal mass is:   " + str(self.floor.modal_mass[self.mode]) + "  kg"
         self.text_layout.addWidget(QtWidgets.QLabel(text1))
@@ -374,7 +374,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def _data_entry(self):
 
         if self.input_weight.text() == '':
-            self.weight = 80
+            self.weight = 800
         else:
             self.input_weight.setStyleSheet("QLineEdit"
                                             "{"

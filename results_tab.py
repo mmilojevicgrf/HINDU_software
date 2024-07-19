@@ -26,6 +26,7 @@ class Plots3DResults(QtWidgets.QMainWindow):
         self.time = time
         self.modes = modes
         self.walking_f = fp
+        self.fig = None
 
         self.setWindowTitle("3D plots by grid")
         width = 600
@@ -76,6 +77,7 @@ class Plots3DResults(QtWidgets.QMainWindow):
 
         self.plot_slider = QtWidgets.QCheckBox("Plot Slider")
         self.plot_slider.setChecked(False)
+        self.slider_values_calculated = False
         checkbox_layout.addWidget(self.plot_slider)
         check_box_modes.setLayout(checkbox_layout)
 
@@ -85,18 +87,21 @@ class Plots3DResults(QtWidgets.QMainWindow):
         slider_layout = QtWidgets.QHBoxLayout()
         dt = self.time[1] - self.time[0]
         self.slider_step = 0
-        if dt < 1:
+        if dt < 0.01:  # elif resava ovakve uslove, minimalan korak je stoti deo sekunde
+            dt = 0.01
+            self.slider_step = 1 / dt
+        elif dt < 1:
             self.slider_step = 1 / dt
         else:
             self.slider_step = 1
-        self.slider_min_value = self.slider_step * min(self.time)
-        self.slider_max_value = (self.slider_step * max(self.time)) - 1
+        self.slider_min_value = round(self.slider_step * min(self.time), 2)
+        self.slider_max_value = round((self.slider_step * max(self.time) - 1), 2)
         self.slider_min_label = QtWidgets.QLabel()
         slider_layout.addWidget(self.slider_min_label)
         if self.slider_min_value == 0:
             self.slider_min_label.setText("0")
         else:
-            self.slider_min_label.setText(str(self.slider_min_value / self.slider_step))
+            self.slider_min_label.setText(str(round(self.slider_min_value / self.slider_step, 2)))
         self.slider = QtWidgets.QSlider()
         self.slider.setOrientation(QtCore.Qt.Horizontal)
         self.slider.setMinimum(self.slider_min_value)
@@ -111,7 +116,7 @@ class Plots3DResults(QtWidgets.QMainWindow):
         slider_layout.addWidget(self.slider)
         self.slider_max_label = QtWidgets.QLabel()
         slider_layout.addWidget(self.slider_max_label)
-        self.slider_max_label.setText(str(self.slider_max_value / self.slider_step))
+        self.slider_max_label.setText(str(round(self.slider_max_value / self.slider_step, 2)))
         self.slider_current_time = QtWidgets.QLabel()
         slider_layout.addWidget(self.slider_current_time)
         slider_box.setLayout(slider_layout)
@@ -174,10 +179,10 @@ class Plots3DResults(QtWidgets.QMainWindow):
                 mode_action.setChecked(False)
         modes_response = np.array(self.slider_modes_response)
         self.slider_ax.plot_trisurf(self.slider_x, self.slider_y,
-                                    modes_response[:, self.selected_mode, self.slider.value()],
+                                    modes_response[:, self.selected_mode, self.slider_current_value],
                                     label="MODE " + str(self.selected_mode + 1), cmap='jet')
         self.slider_ax.set_title('MODE ' + str(self.selected_mode + 1) + ': T = ' +
-                                 str(self.slider.value() / self.slider_step) + '[s]')
+                                 str(self.slider_current_value / self.slider_step) + '[s]')
         self.slider_ax.set_xlabel('X [m]', labelpad=10)
         self.slider_ax.set_ylabel('Y [m]', labelpad=10)
         self.slider_ax.set_zlabel(self.response_type, labelpad=10)
@@ -186,23 +191,24 @@ class Plots3DResults(QtWidgets.QMainWindow):
         self.slider_fig.canvas.draw()
 
     def plot_slider_response(self):
-        if self.response_total.isChecked():
-            self.response_modes.setChecked(False)
         self.slider_fig = Figure()
         self.slider_ax = self.slider_fig.add_subplot(projection='3d')
-        if self.response_total.isChecked():
+        self.slider_current_value = 0
+        if self.response_total.isChecked() and self.response_modes.isChecked():
+            self.response_modes.setChecked(False)
+        if self.response_total.isChecked() and not self.response_modes.isChecked():
             total_response = np.array(self.slider_total_response)
             self.slider_ax.plot_trisurf(self.slider_x, self.slider_y,
-                                        total_response[:, self.slider.value()], cmap='jet')
-            self.slider_ax.set_title(f'Total Response: T = {self.slider.value() / self.slider_step} [s]')
+                                        total_response[:, self.slider_current_value], cmap='jet')
+            self.slider_ax.set_title(f'Total Response: T = {self.slider_current_value / self.slider_step} [s]')
         elif self.response_modes.isChecked() and not self.response_total.isChecked():
             modes_response = np.array(self.slider_modes_response)
             if self.selected_mode is not None:
                 self.slider_ax.plot_trisurf(self.slider_x, self.slider_y,
-                                            modes_response[:, self.selected_mode, self.slider.value()],
+                                            modes_response[:, self.selected_mode, self.slider_current_value],
                                             label="MODE " + str(self.selected_mode + 1), cmap='jet')
                 self.slider_ax.set_title('MODE ' + str(self.selected_mode + 1) + ': T = ' +
-                                         str(self.slider.value() / self.slider_step) + '[s]')
+                                         str(self.slider_current_value / self.slider_step) + '[s]')
 
         self.slider_ax.set_xlabel('X [m]', labelpad=10)
         self.slider_ax.set_ylabel('Y [m]', labelpad=10)
@@ -261,13 +267,14 @@ class Plots3DResults(QtWidgets.QMainWindow):
 
     def slider_value_changed(self, value):
         self.slider_ax.clear()
-        if self.response_total.isChecked():
+        self.slider_current_value = value
+        if self.response_total.isChecked() and self.response_modes.isChecked():
             self.response_modes.setChecked(False)
-        if self.response_total.isChecked():
+        if self.response_total.isChecked() and not self.response_modes.isChecked():
             total_response = np.array(self.slider_total_response)
-            self.slider_ax.plot_trisurf(self.slider_x, self.slider_y, total_response[:, value],
+            self.slider_ax.plot_trisurf(self.slider_x, self.slider_y, total_response[:, self.slider_current_value],
                                         cmap='jet')
-            self.slider_ax.set_title(f'Total Response: T = {value / self.slider_step} [s]')
+            self.slider_ax.set_title(f'Total Response: T = {round(self.slider_current_value / self.slider_step, 2)} [s]')
             self.slider_ax.set_xlabel('X [m]', labelpad=10)
             self.slider_ax.set_ylabel('Y [m]', labelpad=10)
             self.slider_ax.set_zlabel(self.response_type, labelpad=10)
@@ -276,22 +283,22 @@ class Plots3DResults(QtWidgets.QMainWindow):
             if self.selected_mode is not None:
                 modes_response = np.array(self.slider_modes_response)
                 self.slider_ax.plot_trisurf(self.slider_x, self.slider_y,
-                                            modes_response[:, self.selected_mode, self.slider.value()],
+                                            modes_response[:, self.selected_mode, self.slider_current_value],
                                             label="MODE " + str(self.selected_mode + 1), cmap='jet')
                 self.slider_ax.set_title('MODE ' + str(self.selected_mode + 1) + ': T = ' +
-                                         str(self.slider.value() / self.slider_step) + '[s]')
+                                         str(round(self.slider_current_value / self.slider_step, 2)) + '[s]')
                 self.slider_ax.set_xlabel('X [m]', labelpad=10)
                 self.slider_ax.set_ylabel('Y [m]', labelpad=10)
                 self.slider_ax.set_zlabel(self.response_type, labelpad=10)
                 self.canvas.draw()
 
     def enable_total(self):
-        if self.response_total.isChecked() and self.plot_slider.isChecked():
+        if self.response_total.isChecked() and self.plot_slider.isChecked() and self.slider_values_calculated:
             self.response_modes.setChecked(False)
             self.menu_tab.setEnabled(False)
 
     def enable_modes(self):
-        if self.response_modes.isChecked() and self.plot_slider.isChecked():
+        if self.response_modes.isChecked() and self.plot_slider.isChecked() and self.slider_values_calculated:
             self.menu_tab.setEnabled(True)
             if self.selected_mode is None:
                 self.slider.setEnabled(False)
@@ -299,11 +306,6 @@ class Plots3DResults(QtWidgets.QMainWindow):
         else:
             self.menu_tab.setEnabled(False)
 
-    def enable_slider(self):
-        if self.plot_slider.isChecked():
-            self.slider.setEnabled(True)
-        else:
-            self.slider.setEnabled(False)
 
     def max_acceleration_at_point(self, x, y, modes, total, do_rms):
         self.response_type = "Z [m/s^2]"
@@ -377,18 +379,30 @@ class Plots3DResults(QtWidgets.QMainWindow):
         modes_checked = self.response_modes.isChecked()
         total_checked = self.response_total.isChecked()
         self.response_type = 'Z [m/s^2]'
+        if self.fig is not None:
+            self.fig.clear()
         if self.plot_slider.isChecked():
             self.slider_acceleration()
             self.slider.setValue(0)
+            self.slider_values_calculated = True
+            if self.response_modes.isChecked() and not self.response_total.isChecked():
+                for mode, mode_action in self.mode_actions.items():
+                    item = self.list_widget.item(mode)
+                    item.setSelected(False)
+                    mode_action.setChecked(False)
+                    self.slider.setEnabled(False)
+                    self.menu_tab.setEnabled(True)
+            else:
+                self.slider.setEnabled(True)
             self.plot_slider_response()
             self.canvas = FigureCanvasQTAgg(self.slider_fig)
             self.canvas_screen.addWidget(self.canvas)
             self.empty_canvas_layout.setLayout(self.canvas_screen)
-            self.slider.setEnabled(True)
         elif total_checked and not modes_checked:
             self.slider.setValue(0)
             self.slider.setDisabled(True)
             self.menu_tab.setEnabled(False)
+            self.slider_values_calculated = False
             self.canvas_screen.removeWidget(self.canvas)
             self.canvas.deleteLater()
             max_accelerations = np.array(
@@ -400,6 +414,7 @@ class Plots3DResults(QtWidgets.QMainWindow):
             self.canvas_screen.addWidget(self.canvas)
             self.empty_canvas_layout.setLayout(self.canvas_screen)
         elif total_checked and modes_checked:
+            self.slider_values_calculated = False
             self.slider.setValue(0)
             self.slider.setDisabled(True)
             self.menu_tab.setEnabled(False)
@@ -423,6 +438,7 @@ class Plots3DResults(QtWidgets.QMainWindow):
             self.canvas_screen.addWidget(self.canvas)
             self.empty_canvas_layout.setLayout(self.canvas_screen)
         elif modes_checked and not total_checked:
+            self.slider_values_calculated = False
             self.slider.setValue(0)
             self.slider.setDisabled(True)
             self.menu_tab.setEnabled(False)
@@ -449,15 +465,27 @@ class Plots3DResults(QtWidgets.QMainWindow):
         modes_checked = self.response_modes.isChecked()
         total_checked = self.response_total.isChecked()
         self.response_type = 'Z [m/s]'
+        if self.fig is not None:
+            self.fig.clear()
         if self.plot_slider.isChecked():
             self.slider_velocity()
             self.slider.setValue(0)
+            self.slider_values_calculated = True
+            if self.response_modes.isChecked() and not self.response_total.isChecked():
+                for mode, mode_action in self.mode_actions.items():
+                    item = self.list_widget.item(mode)
+                    item.setSelected(False)
+                    mode_action.setChecked(False)
+                    self.slider.setEnabled(False)
+                    self.menu_tab.setEnabled(True)
+            else:
+                self.slider.setEnabled(True)
             self.plot_slider_response()
             self.canvas = FigureCanvasQTAgg(self.slider_fig)
             self.canvas_screen.addWidget(self.canvas)
             self.empty_canvas_layout.setLayout(self.canvas_screen)
-            self.slider.setEnabled(True)
         elif total_checked and not modes_checked:
+            self.slider_values_calculated = False
             self.slider.setValue(0)
             self.slider.setDisabled(True)
             self.menu_tab.setEnabled(False)
@@ -470,6 +498,7 @@ class Plots3DResults(QtWidgets.QMainWindow):
             self.canvas_screen.addWidget(self.canvas)
             self.empty_canvas_layout.setLayout(self.canvas_screen)
         elif total_checked and modes_checked:
+            self.slider_values_calculated = False
             self.slider.setValue(0)
             self.slider.setDisabled(True)
             self.menu_tab.setEnabled(False)
@@ -489,6 +518,7 @@ class Plots3DResults(QtWidgets.QMainWindow):
             self.canvas_screen.addWidget(self.canvas)
             self.empty_canvas_layout.setLayout(self.canvas_screen)
         elif modes_checked and not total_checked:
+            self.slider_values_calculated = False
             self.slider.setValue(0)
             self.slider.setDisabled(True)
             self.menu_tab.setEnabled(False)
@@ -514,18 +544,30 @@ class Plots3DResults(QtWidgets.QMainWindow):
         modes_checked = self.response_modes.isChecked()
         total_checked = self.response_total.isChecked()
         self.response_type = 'Z [m]'
+        if self.fig is not None:
+            self.fig.clear()
         if self.plot_slider.isChecked():
             self.slider_displacement()
             self.slider.setValue(0)
+            self.slider_values_calculated = True
+            if self.response_modes.isChecked() and not self.response_total.isChecked():
+                for mode, mode_action in self.mode_actions.items():
+                    item = self.list_widget.item(mode)
+                    item.setSelected(False)
+                    mode_action.setChecked(False)
+                    self.slider.setEnabled(False)
+                    self.menu_tab.setEnabled(True)
+            else:
+                self.slider.setEnabled(True)
             self.plot_slider_response()
             self.canvas = FigureCanvasQTAgg(self.slider_fig)
             self.canvas_screen.addWidget(self.canvas)
             self.empty_canvas_layout.setLayout(self.canvas_screen)
-            self.slider.setEnabled(True)
         elif total_checked and not modes_checked:
             self.slider.setValue(0)
             self.slider.setDisabled(True)
             self.menu_tab.setEnabled(False)
+            self.slider_values_calculated = False
             max_velocities = np.array(
                 [self.max_displacement_at_point(xi, yi, modes_checked, total_checked) for xi, yi
                  in zip(x.flatten(), y.flatten())])
@@ -535,6 +577,10 @@ class Plots3DResults(QtWidgets.QMainWindow):
             self.canvas_screen.addWidget(self.canvas)
             self.empty_canvas_layout.setLayout(self.canvas_screen)
         elif total_checked and modes_checked:
+            self.slider.setValue(0)
+            self.slider.setDisabled(True)
+            self.menu_tab.setEnabled(False)
+            self.slider_values_calculated = False
             x_flat = x.flatten()
             y_flat = y.flatten()
             max_displacements = []
@@ -557,6 +603,7 @@ class Plots3DResults(QtWidgets.QMainWindow):
             self.slider.setValue(0)
             self.slider.setDisabled(True)
             self.menu_tab.setEnabled(False)
+            self.slider_values_calculated = False
             x_flat = x.flatten()
             y_flat = y.flatten()
             max_displacements = []
@@ -579,6 +626,7 @@ class Plots3DResults(QtWidgets.QMainWindow):
         self.menu_tab.setEnabled(False)
         self.slider.setEnabled(False)
         self.plot_slider.setChecked(False)
+        self.slider_values_calculated = False
         self.canvas.deleteLater()
         self.response_type = 'Z (m/s^2)'
         x, y = get_cord()
@@ -601,6 +649,7 @@ class Plots3DResults(QtWidgets.QMainWindow):
         self.menu_tab.setEnabled(False)
         self.slider.setEnabled(False)
         self.plot_slider.setChecked(False)
+        self.slider_values_calculated = False
         self.canvas_screen.removeWidget(self.canvas)
         self.canvas.deleteLater()
         self.response_type = 'Z (m/s)'

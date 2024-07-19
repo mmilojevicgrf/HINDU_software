@@ -58,7 +58,7 @@ class LoadGeometryModes(QtWidgets.QWidget):
         files_list = pd.Series(dialog_list)
         # Ovo je u stvari lista, nije putanja do foldera. Zadrzano je ime promenljive zbog poziva po ostalim metodama
         self.filepath = files_list
-        # self.filepath = str(QtWidgets.QFileDialog.getExistingDirectory(self, "Select Directory"))
+        #self.filepath = str(QtWidgets.QFileDialog.getExistingDirectory(self, "Select Directory"))
 
     def _get_data(self):
 

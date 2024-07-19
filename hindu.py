@@ -23,7 +23,6 @@ def read_files(filepath):
     dat_file = dat_files[0]
     return dat_file, rpt_files, str(dat_file)
 
-
 def floor_geometry(NNode, rpt_file):
     rpt = open(rpt_file, "r")
     rpt_lines = rpt.read().splitlines()

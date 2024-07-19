@@ -374,12 +374,7 @@ class Response:
     def __init__(self, y, mode_shape_value):
 
         nmodes = len(mode_shape_value)
-
-        if len(y[0]) > 100:
-
-            n = len(y[0])
-        else:
-            n = len(y[1])
+        n = len(y[0])
 
         self.mode_response = np.zeros((nmodes, n))
         for mode in range(nmodes):
