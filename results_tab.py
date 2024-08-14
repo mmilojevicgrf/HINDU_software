@@ -3,14 +3,9 @@ from PySide6 import QtCore
 from PySide6 import QtGui
 from hindu import get_cord
 
-import sys
-
-import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.backend_bases import MouseButton
-from matplotlib.figure import Figure
 
-import numpy as np
 from hindu_calculation import *
 
 

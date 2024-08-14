@@ -1,6 +1,7 @@
 import os
 import pandas as pd
-from PySide6 import QtWidgets, QtCore
+from PySide6 import QtCore
+
 from hindu import *
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
@@ -20,6 +21,7 @@ class LoadGeometryModes(QtWidgets.QWidget):
         width = 400
         height = 250
         self.setFixedSize(width, height)
+        self.experimental = False
 
         choose_software = QtWidgets.QGroupBox("Choose one of the listed software:", self)
         choose_software.setFixedSize(390, 240)
@@ -36,41 +38,87 @@ class LoadGeometryModes(QtWidgets.QWidget):
         self.software_list = QtWidgets.QComboBox(choose_software)
         self.layout.addRow(self.software_list)
         self.software_list.addItem("<Choose from software>")
+        self.software_list.addItem("Choose from experimental data")
         self.software_list.addItem("Abaqus CAE")
         self.software_list.addItem("Tower")
         self.software_list.addItem("SAP2000")
 
-        self.software_list.activated.connect(self._browse_folder)
-        self.software_list.activated.connect(self._get_data)
+        #self.software_list.activated.connect(self._browse_folder)
+        #self.software_list.activated.connect(self._get_data)
+        self.software_list.currentIndexChanged.connect(self._handle_selection)
+
 
     def closeEvent(self, event):
         self.window_closed.emit()
         event.accept()
 
     def _browse_folder(self):
-
-        if self.software_list.currentText() == "<Choose from software>":
-            return
         def_folder = os.path.expanduser("~")
         filters = "*.rpt *.dat"
         dialog = QtWidgets.QFileDialog.getOpenFileNames(self, "Select files to load:", def_folder, filter=filters)
         dialog_list = dialog[0]
         files_list = pd.Series(dialog_list)
-        # Ovo je u stvari lista, nije putanja do foldera. Zadrzano je ime promenljive zbog poziva po ostalim metodama
         self.filepath = files_list
         #self.filepath = str(QtWidgets.QFileDialog.getExistingDirectory(self, "Select Directory"))
 
-    def _get_data(self):
+    def _browse_experimental_folder(self):
+        def_folder = os.path.expanduser("~")
+        filters = "*.svs *.uff"
+        dialog = QtWidgets.QFileDialog.getOpenFileNames(self, "Select files to load:", def_folder, filter=filters)
+        dialog_list = dialog[0]
+        files_list = pd.Series(dialog_list)
+        self.filepath = files_list
 
-        self.dat, self.rpts, self.dat_name = read_files(self.filepath)
-        self._write()
-        self.layout.addRow(self.report_dat)
-        self.layout.addRow(self.rpt_num)
+    def _handle_selection(self):
+        current_text = self.software_list.currentText()
+        if current_text == "<Choose from software>":
+            pass
+        elif current_text == "Choose from experimental data":
+            self.experimental = True
+            self._browse_experimental_folder()
+            self._get_experimental_data()
+        elif current_text in ["Abaqus CAE", "Tower", "SAP2000"]:
+            self.experimental = False
+            self._browse_folder()
+            self._get_data()
+        else:
+            pass
+
+    def _get_data(self):
+        try:
+            self.dat, self.rpts, self.dat_name = read_files(self.filepath)
+            self._write()
+            self.layout.addRow(self.report_dat)
+            self.layout.addRow(self.rpt_num)
+        except AttributeError:
+            pass
+        except IndexError:
+            pass
+
+    def _get_experimental_data(self):
+        try:
+            self.uffs, self.svss = read_experimental_files(self.filepath)
+            self._write_experimental()
+            self.layout.addRow(self.svs_num)
+            self.layout.addRow(self.uff_num)
+            self._show_table_window()
+        except AttributeError:
+            pass
+        except IndexError:
+            pass
 
     def _write(self):
         self.report_dat = QtWidgets.QLabel("Loaded .dat file: " + self.dat_name)
         self.rpt_num = QtWidgets.QLabel("Number of loaded .rpt files: " + str(np.size(self.rpts)))
 
+    def _write_experimental(self):
+        self.svs_num = QtWidgets.QLabel("Number of loaded .svs files: " + str(np.size(self.svss)))
+        self.uff_num = QtWidgets.QLabel("Number of loaded .uff files: " + str(np.size(self.uffs)))
+
+
+    def _show_table_window(self):
+        self.table_window = TableWindow(len(self.svss))
+        self.table_window.show()
 
 class WalkingPath(QtWidgets.QWidget):
 

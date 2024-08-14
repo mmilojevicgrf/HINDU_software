@@ -37,8 +37,35 @@ class MainWindow(QtWidgets.QMainWindow):
         self.load_geometry_modes_tab.window_closed.connect(self._plot_canvas)
         self.load_geometry_modes_tab.window_closed.connect(self._active_edit_button)
         self.load_geometry_modes_tab.window_closed.connect(self._active_force_tab)
-
+        self.load_geometry_modes_tab.window_closed.connect(self._activate_calculate)
+        self.load_geometry_modes_tab.window_closed.connect(self._choose_axes)
         self.load_geometry_modes_tab.show()
+
+    def _x_axis_button(self):
+        if self.load_geometry_modes_tab.experimental:
+            if self.y_axis_walk.isChecked():
+                self.y_axis_walk.setChecked(False)
+            self.start_point_x.setDisabled(False)
+            self.path_start = (min(self.floor.x_coord), (max(self.floor.y_coord) - min(self.floor.y_coord)) / 2)
+            self.path_end = (max(self.floor.x_coord), (max(self.floor.y_coord) - min(self.floor.y_coord)) / 2)
+            self.start_point_x.setText(str(self.path_start[0]))
+            self.end_point_x.setText(str(self.path_end[0]))
+            self.start_point_y.setText(str(self.path_start[1]))
+            self.end_point_y.setText(str(self.path_end[1]))
+            self.start_point_x.setDisabled(True)
+
+    def _y_axis_button(self):
+        if self.load_geometry_modes_tab.experimental:
+            if self.x_axis_walk.isChecked():
+                self.x_axis_walk.setChecked(False)
+            self.start_point_x.setDisabled(False)
+            self.path_start = ((max(self.floor.x_coord) - min(self.floor.y_coord)) / 2, max(self.floor.y_coord))
+            self.path_end = ((max(self.floor.x_coord) - min(self.floor.y_coord)) / 2, min(self.floor.y_coord))
+            self.start_point_x.setText(str(self.path_start[0]))
+            self.end_point_x.setText(str(self.path_end[0]))
+            self.start_point_y.setText(str(self.path_start[1]))
+            self.end_point_y.setText(str(self.path_end[1]))
+            self.start_point_x.setDisabled(True)
 
     def _define_walking_path_window(self):
 
@@ -58,8 +85,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self.plots_3d_response.show()
 
     def _input_files(self):
-        self.dat_file = self.load_geometry_modes_tab.dat
-        self.rpts = self.load_geometry_modes_tab.rpts
+        try:
+            if not self.load_geometry_modes_tab.experimental:
+                self.dat_file = self.load_geometry_modes_tab.dat
+                self.rpts = self.load_geometry_modes_tab.rpts
+            else:
+                self.uffs = self.load_geometry_modes_tab.uffs
+                self.svss = self.load_geometry_modes_tab.svss
+        except AttributeError:
+            exit()
 
     def _update_model_name(self):
         # Uncheck all force model actions
@@ -123,7 +157,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.arup_force.triggered.connect(self._update_model_name)
         self.force_tab.addAction(self.arup_force)
 
-        # Ensure the default model ("Kerr") is triggered and checked on init
+
         self._update_model_name()
 
         self.results_tab = self.menuBar().addMenu("&Response diagrams")
@@ -149,20 +183,28 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.start_note.deleteLater()
         self.list_widget = QtWidgets.QListWidget()
-        for mode in range(np.size(self.load_geometry_modes_tab.rpts)):
-            line = QtWidgets.QListWidgetItem("Mode  " + str(mode + 1))
-            self.list_widget.addItem(line)
-        self.list_widget.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.MultiSelection)
-        scroll_bar = QtWidgets.QScrollBar(self)
-        self.list_widget.setVerticalScrollBar(scroll_bar)
-        self.ms_layout.addWidget(self.list_widget)
+        try:
+            if not self.load_geometry_modes_tab.experimental:
+                for mode in range(np.size(self.load_geometry_modes_tab.rpts)):
+                    line = QtWidgets.QListWidgetItem("Mode  " + str(mode + 1))
+                    self.list_widget.addItem(line)
+            else:
+                for mode in range(np.size(self.load_geometry_modes_tab.svss)):
+                    line = QtWidgets.QListWidgetItem("Mode  " + str(mode + 1))
+                    self.list_widget.addItem(line)
+            self.list_widget.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.MultiSelection)
+            scroll_bar = QtWidgets.QScrollBar(self)
+            self.list_widget.setVerticalScrollBar(scroll_bar)
+            self.ms_layout.addWidget(self.list_widget)
 
-        select_all = QtWidgets.QCheckBox("Select all modes", self.available_modes)
-        select_all.toggled.connect(self._select_all)
+            select_all = QtWidgets.QCheckBox("Select all modes", self.available_modes)
+            select_all.toggled.connect(self._select_all)
 
-        self.list_widget.itemSelectionChanged.connect(self._selection_of_modes)
+            self.list_widget.itemSelectionChanged.connect(self._selection_of_modes)
 
-        self.ms_layout.addWidget(select_all)
+            self.ms_layout.addWidget(select_all)
+        except AttributeError:
+            exit()
 
     def _selection_of_modes(self):
         modes = [x.row() for x in self.list_widget.selectedIndexes()]
@@ -227,23 +269,38 @@ class MainWindow(QtWidgets.QMainWindow):
         box.setLayout(wp_layout)
 
         self.start_point_x = QtWidgets.QLineEdit(box)
+        self.start_point_x.setDisabled(True)
         self.start_point_y = QtWidgets.QLineEdit(box)
+        self.start_point_y.setDisabled(True)
 
         self.end_point_x = QtWidgets.QLineEdit(box)
+        self.end_point_x.setDisabled(True)
         self.end_point_y = QtWidgets.QLineEdit(box)
+        self.end_point_y.setDisabled(True)
+        self.x_axis_walk = QtWidgets.QCheckBox(box)
+        self.x_axis_walk.setDisabled(True)
+        self.x_axis_walk.setChecked(True)
+        self.x_axis_walk.clicked.connect(self._x_axis_button)
+        self.y_axis_walk = QtWidgets.QCheckBox(box)
+        self.y_axis_walk.setDisabled(True)
+        self.y_axis_walk.clicked.connect(self._y_axis_button)
 
         wp_layout.addWidget(QtWidgets.QLabel("Coordinates: "), 0, 0)
-        wp_layout.addWidget(QtWidgets.QLabel("           X"), 0, 1)
-        wp_layout.addWidget(QtWidgets.QLabel("           Y"), 0, 2)
+        wp_layout.addWidget(QtWidgets.QLabel("Axes: "), 1, 0)
+        wp_layout.addWidget(QtWidgets.QLabel("X"), 0, 1)
+        wp_layout.addWidget(QtWidgets.QLabel("Y"), 0, 2)
 
-        wp_layout.addWidget(QtWidgets.QLabel("Start point"), 1, 0)
-        wp_layout.addWidget(QtWidgets.QLabel("End point"), 2, 0)
+        wp_layout.addWidget(QtWidgets.QLabel("Start point"), 2, 0)
+        wp_layout.addWidget(QtWidgets.QLabel("End point"), 3, 0)
 
-        wp_layout.addWidget(self.start_point_x, 1, 1)
-        wp_layout.addWidget(self.start_point_y, 1, 2)
+        wp_layout.addWidget(self.x_axis_walk, 1, 1)
+        wp_layout.addWidget(self.y_axis_walk, 1, 2)
 
-        wp_layout.addWidget(self.end_point_x, 2, 1)
-        wp_layout.addWidget(self.end_point_y, 2, 2)
+        wp_layout.addWidget(self.start_point_x, 2, 1)
+        wp_layout.addWidget(self.start_point_y, 2, 2)
+
+        wp_layout.addWidget(self.end_point_x, 3, 1)
+        wp_layout.addWidget(self.end_point_y, 3, 2)
 
         buttons = QtWidgets.QHBoxLayout()
         self.edit_button = QtWidgets.QPushButton("Edit points")
@@ -253,7 +310,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.calculate_button = QtWidgets.QPushButton("Calculate")
         self.calculate_button.setFixedSize(100, 30)
-        self.calculate_button.setDisabled(False)
+        self.calculate_button.setDisabled(True)
         self.calculate_button.clicked.connect(self._calculate)
         self.calculate_button.clicked.connect(self._delete_mode_shapes_canvas)
 
@@ -275,9 +332,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self.main_layout.addLayout(self.empty_canvas_layout, 0, 1, 3, 3)
 
     def _input_floor(self):
-        self.floor = Floor(self.dat_file, self.rpts)
-        self.walking_path_option.setDisabled(False)
-        self.mode = 0
+        try:
+            if self.load_geometry_modes_tab.experimental:
+                self.floor = Floor(self.uffs, self.svss, True)
+            else:
+                self.floor = Floor(self.dat_file, self.rpts, False)
+            self.walking_path_option.setDisabled(False)
+            self.mode = 0
+        except AttributeError:
+            pass
 
     def _plot_canvas(self):
 
@@ -340,19 +403,25 @@ class MainWindow(QtWidgets.QMainWindow):
         button_next.clicked.connect(self._mode_plus_one)
 
     def _mode_shape_canvas(self):
-        self.fig = self.floor.plot(self.mode)
-        self.plot = FigureCanvasQTAgg(self.fig)
-        self.canvas_layout.addWidget(self.plot)
+        try:
+            self.fig = self.floor.plot(self.mode)
+            self.plot = FigureCanvasQTAgg(self.fig)
+            self.canvas_layout.addWidget(self.plot)
+        except AttributeError:
+            pass
 
     def _text_canvas(self):
-        self.text_layout = QtWidgets.QVBoxLayout()
-        text1 = "Mode number:   " + str(self.mode +1)
-        text2 = "Frequency is:   " + str(self.floor.frequency[self.mode]) + "  Hz"
-        text3 = "Modal mass is:   " + str(self.floor.modal_mass[self.mode]) + "  kg"
-        self.text_layout.addWidget(QtWidgets.QLabel(text1))
-        self.text_layout.addWidget(QtWidgets.QLabel(text2))
-        self.text_layout.addWidget(QtWidgets.QLabel(text3))
-        self.canvas_layout.addLayout(self.text_layout)
+        try:
+            self.text_layout = QtWidgets.QVBoxLayout()
+            text1 = "Mode number:   " + str(self.mode + 1)
+            text2 = "Frequency is:   " + str(self.floor.frequency[self.mode]) + "  Hz"
+            text3 = "Modal mass is:   " + str(self.floor.modal_mass[self.mode]) + "  kg"
+            self.text_layout.addWidget(QtWidgets.QLabel(text1))
+            self.text_layout.addWidget(QtWidgets.QLabel(text2))
+            self.text_layout.addWidget(QtWidgets.QLabel(text3))
+            self.canvas_layout.addLayout(self.text_layout)
+        except AttributeError:
+            pass
 
     def _input_path(self):
 
@@ -365,8 +434,30 @@ class MainWindow(QtWidgets.QMainWindow):
         self.end_point_y.setText(str(end[1]))
 
     def _active_edit_button(self):
+        if not self.load_geometry_modes_tab.experimental:
+            self.start_point_x.setDisabled(False)
+            self.start_point_y.setDisabled(False)
+            self.end_point_x.setDisabled(False)
+            self.end_point_y.setDisabled(False)
+            self.edit_button.setDisabled(False)
 
-        self.edit_button.setDisabled(False)
+    def _choose_axes(self):
+        if self.load_geometry_modes_tab.experimental:
+            self.x_axis_walk.setDisabled(False)
+            self.x_axis_walk.setChecked(True)
+            self.y_axis_walk.setDisabled(False)
+            self.y_axis_walk.setChecked(False)
+            self.start_point_x.setDisabled(False)
+            self.path_start = (min(self.floor.x_coord), (max(self.floor.y_coord) - min(self.floor.y_coord)) / 2)
+            self.path_end = (max(self.floor.x_coord), (max(self.floor.y_coord) - min(self.floor.y_coord)) / 2)
+            self.start_point_x.setText(str(self.path_start[0]))
+            self.end_point_x.setText(str(self.path_end[0]))
+            self.start_point_y.setText(str(self.path_start[1]))
+            self.end_point_y.setText(str(self.path_end[1]))
+            self.start_point_x.setDisabled(True)
+
+    def _activate_calculate(self):
+        self.calculate_button.setDisabled(False)
 
     def _active_force_tab(self):
         self.force_tab.setDisabled(False)
@@ -409,14 +500,17 @@ class MainWindow(QtWidgets.QMainWindow):
                                                "}")
             self.walking_frequency = float(self.input_frequency.text())
 
-        if self.input_damp.text() == '':
-            self.damping = 5
+        if self.load_geometry_modes_tab.experimental:
+            self.damping = self.floor.damp[0]  # uzmi prvi
         else:
-            self.input_damp.setStyleSheet("QLineEdit"
-                                          "{"
-                                          "background : white;"
-                                          "}")
-            self.damping = float(self.input_damp.text()) / 100
+            if self.input_damp.text() == '':
+                self.damping = 5
+            else:
+                self.input_damp.setStyleSheet("QLineEdit"
+                                              "{"
+                                              "background : white;"
+                                              "}")
+                self.damping = float(self.input_damp.text()) / 100
 
         self.path_start = ([float(self.start_point_x.text()), float(self.start_point_y.text())])
         self.path_end = ([float(self.end_point_x.text()), float(self.end_point_y.text())])

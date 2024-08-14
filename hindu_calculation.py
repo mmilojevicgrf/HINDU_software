@@ -402,7 +402,7 @@ def plot_max_abs_mode_response(x, y, max_accelerations, modes, type_to_plot):
     ax = fig.add_subplot(111, projection='3d')
     max_accelerations_matrix = np.array(max_accelerations)
     for i, mode in enumerate(modes):
-        ax.plot_trisurf(x.flatten(), y.flatten(), max_accelerations_matrix[:, mode, 0], label="MODE " + str(mode))
+        ax.plot_trisurf(x.flatten(), y.flatten(), max_accelerations_matrix[:, mode - 1, 0], label="MODE " + str(mode))
     ax.set_zlabel(type_to_plot)
     ax.legend()
     return fig
@@ -414,7 +414,7 @@ def plot_max_abs_all_response(x, y, max_accelerations, modes, total_acceleration
     ax.plot_trisurf(x, y, total_accelerations, label="Total response")
     max_accelerations_matrix = np.array(max_accelerations)
     for i, mode in enumerate(modes):
-        ax.plot_trisurf(x.flatten(), y.flatten(), max_accelerations_matrix[:, mode, 0], label="MODE " + str(mode))
+        ax.plot_trisurf(x.flatten(), y.flatten(), max_accelerations_matrix[:, mode - 1, 0], label="MODE " + str(mode))
     ax.set_zlabel(type_to_plot)
     ax.legend()
     return fig
