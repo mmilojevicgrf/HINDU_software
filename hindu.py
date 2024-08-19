@@ -117,8 +117,9 @@ def modal_characteristics_experimental(uff_files, svs_files):
             if 'END MODE DEFINITION' in line:
                 n_line_end_mode_definition = num - 1
     NNode = int(n_line_end_mode_definition - n_line_mode_shape)
-    m_shapes = np.zeros((NModes, NNode))
+    m_shapes_from_svs = np.zeros((NModes, NNode))
     normalized_m_shapes = np.zeros((NModes, NNode))
+    phase_array = np.zeros((NModes, NNode))
     mode = 0
     table_window = TableWindow(len(svs_files))
     mmodal_experimental = table_window.get_modal_masses()
@@ -135,12 +136,15 @@ def modal_characteristics_experimental(uff_files, svs_files):
         damp[mode] = float(damp_line[0])
         for node in range(NNode):
             line = ''.join(svs_lines[23 + node]).split()
-            m_shapes[mode][node] = float(line[5])
+            m_shapes_from_svs[mode][node] = float(line[5])
+            phase_array[mode][node] = float(line[6])
+            sign_phase_array = np.sign(phase_array)
+            m_shapes = [a * b for a,b in zip(m_shapes_from_svs, sign_phase_array)]
         mode = mode + 1
 
     for mode in range(NModes):
         mmodal[mode] = mmodal_experimental[mode]
-        max_val = np.max(m_shapes[mode])
+        max_val = np.max(np.abs(m_shapes[mode]))
         normalized_m_shapes[mode] = m_shapes[mode] / max_val
 
     return NNode, freq, mmodal, normalized_m_shapes, damp
