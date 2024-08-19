@@ -1,4 +1,5 @@
 import math
+import numpy as np
 from PySide6 import QtWidgets
 from scipy.spatial import KDTree
 from table_window import TableWindow
@@ -138,13 +139,13 @@ def modal_characteristics_experimental(uff_files, svs_files):
             line = ''.join(svs_lines[23 + node]).split()
             m_shapes_from_svs[mode][node] = float(line[5])
             phase_array[mode][node] = float(line[6])
-            sign_phase_array = np.sign(phase_array)
+            sign_phase_array = np.cos(phase_array) + np.sin(phase_array)
             m_shapes = [a * b for a,b in zip(m_shapes_from_svs, sign_phase_array)]
         mode = mode + 1
 
     for mode in range(NModes):
         mmodal[mode] = mmodal_experimental[mode]
-        max_val = np.max(np.abs(m_shapes[mode]))
+        max_val = np.max(np.abs(m_shapes_from_svs[mode]))
         normalized_m_shapes[mode] = m_shapes[mode] / max_val
 
     return NNode, freq, mmodal, normalized_m_shapes, damp
