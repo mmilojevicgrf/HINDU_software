@@ -431,16 +431,28 @@ def plot_max_abs_mode_response(x, y, max_accelerations, modes, type_to_plot):
 
     return fig
 
-
 def plot_max_abs_all_response(x, y, max_accelerations, modes, total_accelerations, type_to_plot):
-    fig = Figure()
-    ax = fig.add_subplot(projection='3d')
-    ax.plot_trisurf(x, y, total_accelerations, label="Total response")
+    fig = plt.figure(figsize=(15, 15))  # Adjust figure size as needed
+    gs = GridSpec(2, 1, height_ratios=[1, 0.3])  # Create grid layout for plot and legend
+    ax = fig.add_subplot(gs[0], projection='3d')
+    ax.plot_trisurf(x.flatten(), y.flatten(), total_accelerations, label="Total response")
     max_accelerations_matrix = np.array(max_accelerations)
     for i, mode in enumerate(modes):
         ax.plot_trisurf(x.flatten(), y.flatten(), max_accelerations_matrix[:, mode - 1, 0], label="MODE " + str(mode))
     ax.set_zlabel(type_to_plot)
-    ax.legend(loc='upper left', bbox_to_anchor=(0.05, 0.95), fontsize='small')
+    ax_legend = fig.add_subplot(gs[1])
+    ax_legend.axis('off')
+    handles, labels = ax.get_legend_handles_labels()
+    num_modes = len(modes) + 1
+    num_cols = 3
+    num_rows = (num_modes + num_cols - 1) // num_cols
+    legend = ax_legend.legend(handles, labels, loc='center', fontsize='small', ncol=num_cols)
+    ax_legend.set_xlim(0, 1)
+    ax_legend.set_ylim(0, 1)
+    ax_legend.set_aspect('auto', adjustable='box')
+
+    plt.subplots_adjust(hspace=0.4)
+
     return fig
 
 
