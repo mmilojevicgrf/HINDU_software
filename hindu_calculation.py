@@ -1,5 +1,6 @@
 import numpy as np
 from matplotlib.figure import Figure
+from matplotlib.gridspec import GridSpec
 import matplotlib.pyplot as plt
 
 def newmark_int(time, force, u0, udot0, mass, stiffness, damp):
@@ -397,14 +398,37 @@ class Acceleration(Response):
     pass
 
 
+# def plot_max_abs_mode_response(x, y, max_accelerations, modes, type_to_plot):
+#     fig = plt.figure()
+#     ax = fig.add_subplot(111, projection='3d')
+#     max_accelerations_matrix = np.array(max_accelerations)
+#     for i, mode in enumerate(modes):
+#         ax.plot_trisurf(x.flatten(), y.flatten(), max_accelerations_matrix[:, mode - 1, 0], label="MODE " + str(mode))
+#     ax.set_zlabel(type_to_plot)
+#     #ax.legend(loc='upper left', bbox_to_anchor=(0.05, 0.95), fontsize='small')
+#     return fig
+
 def plot_max_abs_mode_response(x, y, max_accelerations, modes, type_to_plot):
-    fig = plt.figure()
-    ax = fig.add_subplot(111, projection='3d')
+    fig = plt.figure(figsize=(15, 15))  # Adjust figure size as needed
+    gs = GridSpec(2, 1, height_ratios=[1, 0.3])  # Create grid layout for plot and legend
+    ax = fig.add_subplot(gs[0], projection='3d')
     max_accelerations_matrix = np.array(max_accelerations)
     for i, mode in enumerate(modes):
         ax.plot_trisurf(x.flatten(), y.flatten(), max_accelerations_matrix[:, mode - 1, 0], label="MODE " + str(mode))
     ax.set_zlabel(type_to_plot)
-    ax.legend()
+    ax_legend = fig.add_subplot(gs[1])
+    ax_legend.axis('off')
+    handles, labels = ax.get_legend_handles_labels()
+    num_modes = len(modes)
+    num_cols = 3
+    num_rows = (num_modes + num_cols - 1) // num_cols
+    legend = ax_legend.legend(handles, labels, loc='center', fontsize='small', ncol=num_cols)
+    ax_legend.set_xlim(0, 1)
+    ax_legend.set_ylim(0, 1)
+    ax_legend.set_aspect('auto', adjustable='box')
+
+    plt.subplots_adjust(hspace=0.4)
+
     return fig
 
 
@@ -416,7 +440,7 @@ def plot_max_abs_all_response(x, y, max_accelerations, modes, total_acceleration
     for i, mode in enumerate(modes):
         ax.plot_trisurf(x.flatten(), y.flatten(), max_accelerations_matrix[:, mode - 1, 0], label="MODE " + str(mode))
     ax.set_zlabel(type_to_plot)
-    ax.legend()
+    ax.legend(loc='upper left', bbox_to_anchor=(0.05, 0.95), fontsize='small')
     return fig
 
 
@@ -429,6 +453,7 @@ def plot_max_abs_total_response(x, y, max_to_plot, type_to_plot, plot_rms, rms):
     ax.set_xlabel('X [m]', labelpad=10)
     ax.set_ylabel('Y [m]', labelpad=10)
     ax.set_zlabel(type_to_plot, labelpad=10)
+    ax.legend(loc='upper left', bbox_to_anchor=(0.05, 0.95), fontsize='small')
     return fig
 
 
@@ -462,7 +487,7 @@ def plot_mode_response(type, response, time, modes):
     for mode in modes:
         a.plot(time, response.mode_response[counter][:], label="MODE " + str(mode))
         counter = counter + 1
-    a.legend()
+    #a.legend(bbox_to_anchor=(1.05,1), loc='upper left', borderaxespad=0)
 
     # a.xlabel('Time [s]', fontsize=24, **font)
     # a.ylabel(type, fontsize=24, **font)
@@ -485,7 +510,7 @@ def plot_all_response(type, response, time, modes):
     for mode in modes:
         a.plot(time, response.mode_response[counter][:], label="MODE " + str(mode))
         counter = counter + 1
-    a.legend()
+    a.legend(loc='upper left', bbox_to_anchor=(0.05, 0.95), fontsize='small')
 
     # a.xlabel('Time [s]', fontsize=24, **font)
     # a.ylabel(type, fontsize=24, **font)
@@ -510,7 +535,7 @@ def plot_rms_response(type, response, time, rms):
     a = fig.add_subplot()
     a.plot(time, response.total_response, label="Total response")
     a.plot(rms.time, rms.moving_average, label=label_rms)
-    a.legend()
+    a.legend(loc='upper left', bbox_to_anchor=(0.05, 0.95), fontsize='small')
 
     # a.xlabel('Time [s]', fontsize=24, **font)
     # a.ylabel(type, fontsize=24, **font)
