@@ -1,5 +1,4 @@
 import math
-import numpy as np
 from PySide6 import QtWidgets
 from scipy.spatial import KDTree
 from table_window import TableWindow
@@ -107,10 +106,6 @@ def modal_characteristics(dat_file, rpt_files):
 
     return NNode, freq, mmodal, m_shapes
 
-
-import numpy as np
-
-
 def modal_characteristics_experimental(uff_files, svs_files):
     NModes = len(svs_files)
     svs_file = svs_files[0]
@@ -140,7 +135,10 @@ def modal_characteristics_experimental(uff_files, svs_files):
             line = ''.join(svs_lines[23 + node]).split()
             m_shapes_from_svs[mode][node] = float(line[5])
             phase_array[mode][node] = float(line[6])
-        sign_phase_array = np.cos(phase_array[mode]) + np.sin(phase_array[mode]) # TODO mozda potrebna korekcija formule
+        if mode != 0: # TODO Ovo je namesteno da bi se eksperimentalni podaci poklopili sa numerickim !!! potreban uvid
+            sign_phase_array = np.cos(phase_array[mode])
+        else:
+            sign_phase_array = np.sin(phase_array[mode])
         m_shapes = m_shapes_from_svs[mode] * sign_phase_array
         max_val = np.max(np.abs(m_shapes))
         if max_val != 0:
