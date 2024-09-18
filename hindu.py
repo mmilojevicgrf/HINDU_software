@@ -139,7 +139,7 @@ def modal_characteristics_experimental(uff_files, svs_files):
             line = ''.join(svs_lines[23 + node]).split()
             m_shapes_from_svs[mode][node] = float(line[5])
             phase_array[mode][node] = float(line[6])
-            sign_phase_array = np.cos(phase_array) + np.sin(phase_array)
+            sign_phase_array = np.cos(phase_array) + np.sin(phase_array) # TODO potreban uvid za tacan izraz
             m_shapes = [a * b for a,b in zip(m_shapes_from_svs, sign_phase_array)]
         mode = mode + 1
 
