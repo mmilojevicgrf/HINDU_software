@@ -108,6 +108,9 @@ def modal_characteristics(dat_file, rpt_files):
     return NNode, freq, mmodal, m_shapes
 
 
+import numpy as np
+
+
 def modal_characteristics_experimental(uff_files, svs_files):
     NModes = len(svs_files)
     svs_file = svs_files[0]
@@ -121,16 +124,14 @@ def modal_characteristics_experimental(uff_files, svs_files):
     m_shapes_from_svs = np.zeros((NModes, NNode))
     normalized_m_shapes = np.zeros((NModes, NNode))
     phase_array = np.zeros((NModes, NNode))
-    mode = 0
-    table_window = TableWindow(len(svs_files))
-    mmodal_experimental = table_window.get_modal_masses()
     mmodal = np.zeros(NModes)
     freq = np.zeros(NModes)
     damp = np.zeros(NModes)
-    for mode_file in svs_files:
-        svs = open(mode_file, "r")
-        svs_lines = svs.read().splitlines()
-        svs.close()
+    table_window = TableWindow(len(svs_files))
+    mmodal_experimental = table_window.get_modal_masses()
+    for mode, mode_file in enumerate(svs_files):
+        with open(mode_file, "r") as svs:
+            svs_lines = svs.read().splitlines()
         freq_line = ''.join(svs_lines[17]).split()
         damp_line = ''.join(svs_lines[20]).split()
         freq[mode] = float(freq_line[0])
@@ -139,14 +140,12 @@ def modal_characteristics_experimental(uff_files, svs_files):
             line = ''.join(svs_lines[23 + node]).split()
             m_shapes_from_svs[mode][node] = float(line[5])
             phase_array[mode][node] = float(line[6])
-            sign_phase_array = np.cos(phase_array) + np.sin(phase_array) # TODO potreban uvid za tacan izraz
-            m_shapes = [a * b for a,b in zip(m_shapes_from_svs, sign_phase_array)]
-        mode = mode + 1
-
-    for mode in range(NModes):
+        sign_phase_array = np.cos(phase_array[mode]) + np.sin(phase_array[mode]) # TODO mozda potrebna korekcija formule
+        m_shapes = m_shapes_from_svs[mode] * sign_phase_array
+        max_val = np.max(np.abs(m_shapes))
+        if max_val != 0:
+            normalized_m_shapes[mode] = m_shapes / max_val
         mmodal[mode] = mmodal_experimental[mode]
-        max_val = np.max(np.abs(m_shapes_from_svs[mode]))
-        normalized_m_shapes[mode] = m_shapes[mode] / max_val
 
     return NNode, freq, mmodal, normalized_m_shapes, damp
 
