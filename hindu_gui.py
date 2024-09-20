@@ -500,17 +500,17 @@ class MainWindow(QtWidgets.QMainWindow):
                                                "}")
             self.walking_frequency = float(self.input_frequency.text())
 
-        if self.load_geometry_modes_tab.experimental:
-            self.damping = self.floor.damp[0]  # uzmi prvi
+        # if self.load_geometry_modes_tab.experimental:
+        #     self.damping = self.floor.damp[0]  # uzmi prvi
+        # else:
+        if self.input_damp.text() == '':
+            self.damping = 5/100
         else:
-            if self.input_damp.text() == '':
-                self.damping = 5
-            else:
-                self.input_damp.setStyleSheet("QLineEdit"
-                                              "{"
-                                              "background : white;"
-                                              "}")
-                self.damping = float(self.input_damp.text()) / 100
+            self.input_damp.setStyleSheet("QLineEdit"
+                                          "{"
+                                          "background : white;"
+                                          "}")
+            self.damping = float(self.input_damp.text()) / 100
 
         self.path_start = ([float(self.start_point_x.text()), float(self.start_point_y.text())])
         self.path_end = ([float(self.end_point_x.text()), float(self.end_point_y.text())])

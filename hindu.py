@@ -121,16 +121,13 @@ def modal_characteristics_experimental(uff_files, svs_files):
     phase_array = np.zeros((NModes, NNode))
     mmodal = np.zeros(NModes)
     freq = np.zeros(NModes)
-    damp = np.zeros(NModes)
     table_window = TableWindow(len(svs_files))
     mmodal_experimental = table_window.get_modal_masses()
     for mode, mode_file in enumerate(svs_files):
         with open(mode_file, "r") as svs:
             svs_lines = svs.read().splitlines()
         freq_line = ''.join(svs_lines[17]).split()
-        damp_line = ''.join(svs_lines[20]).split()
         freq[mode] = float(freq_line[0])
-        damp[mode] = float(damp_line[0])
         for node in range(NNode):
             line = ''.join(svs_lines[23 + node]).split()
             m_shapes_from_svs[mode][node] = float(line[5])
@@ -145,7 +142,7 @@ def modal_characteristics_experimental(uff_files, svs_files):
             normalized_m_shapes[mode] = m_shapes / max_val
         mmodal[mode] = mmodal_experimental[mode]
 
-    return NNode, freq, mmodal, normalized_m_shapes, damp
+    return NNode, freq, mmodal, normalized_m_shapes
 
 
 class Floor:
@@ -153,7 +150,7 @@ class Floor:
 
     def __init__(self, uff_or_dat_file, svs_or_rpt_files, experimental):
         if experimental:
-            self.NNode, self.frequency, self.modal_mass, self.m_shapes, self.damp = modal_characteristics_experimental(
+            self.NNode, self.frequency, self.modal_mass, self.m_shapes = modal_characteristics_experimental(
                 uff_or_dat_file, svs_or_rpt_files)
             self.x_coord, self.y_coord = floor_geometry_experimental(self.NNode, uff_or_dat_file[0])
         else:
@@ -199,6 +196,57 @@ class Floor:
                 dist, idx = self.kd_tree.query(point)
                 return values[idx]
             return interpolator
+
+# class Floor:
+#     """Klasa Floor sadrzi sve geometrijske i materijalne karakteristike tavanice ucitane iz Abaqusa"""
+#
+#     def __init__(self, uff_or_dat_file, svs_or_rpt_files, experimental):
+#         if experimental:
+#             self.NNode, self.frequency, self.modal_mass, self.m_shapes, self.damp = modal_characteristics_experimental(
+#                 uff_or_dat_file, svs_or_rpt_files)
+#             self.x_coord, self.y_coord = floor_geometry_experimental(self.NNode, uff_or_dat_file[0])
+#         else:
+#             self.NNode, self.frequency, self.modal_mass, self.m_shapes = modal_characteristics(uff_or_dat_file,
+#                                                                                                svs_or_rpt_files)
+#             self.x_coord, self.y_coord = floor_geometry(self.NNode, svs_or_rpt_files[0])
+#
+#         self.modal_stiffness = (2 * np.pi * self.frequency) ** 2 * self.modal_mass
+#         self.xy = np.column_stack((self.x_coord, self.y_coord))
+#         self.values = self.m_shapes
+#         self.use_regular_grid_interpolator = self._is_regular_grid()
+#
+#     def _is_regular_grid(self):
+#         unique_x = np.unique(self.x_coord)
+#         unique_y = np.unique(self.y_coord)
+#         return len(unique_x) == len(unique_y)
+#
+#     def mode_shape_value(self, mode_number, point):
+#         values = self.values[mode_number]
+#         if self.use_regular_grid_interpolator:
+#             x_unique = np.unique(self.x_coord)
+#             y_unique = np.unique(self.y_coord)
+#             grid_values = values.reshape(len(x_unique), len(y_unique))
+#             interpolator = RegularGridInterpolator((x_unique, y_unique), grid_values)
+#             return interpolator(point)
+#         else:
+#             # Use griddata for interpolation
+#             return griddata(self.xy, values.flatten(), point, method='linear')
+#
+#     def mode_shapes_function(self, mode_number):
+#         values = self.values[mode_number]
+#
+#         if self.use_regular_grid_interpolator:
+#             x_unique = np.unique(self.x_coord)
+#             y_unique = np.unique(self.y_coord)
+#             grid_values = values.reshape(len(x_unique), len(y_unique))
+#             interpolator = RegularGridInterpolator((x_unique, y_unique), grid_values)
+#             return interpolator
+#         else:
+#             def interpolator(point):
+#                 return griddata(self.xy, values.flatten(), point, method='linear')
+#
+#             return interpolator
+
 
     def plot(self, mode_number):
         mshape_to_plot = self.m_shapes[mode_number]
