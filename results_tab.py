@@ -146,6 +146,11 @@ class Plots3DResults(QtWidgets.QMainWindow):
         self.velRMS_button.clicked.connect(self._max_velocity_rms_button)
         buttons_layout.addWidget(self.velRMS_button)
 
+        self.rval_button = QtWidgets.QPushButton("R values")
+        self.rval_button.setFixedSize(100, 35)
+        self.rval_button.clicked.connect(self._r_values_button)
+        buttons_layout.addWidget(self.rval_button)
+
         response_type_buttons.setLayout(buttons_layout)
 
         self.empty_canvas_layout = QtWidgets.QGroupBox(self)
@@ -182,7 +187,6 @@ class Plots3DResults(QtWidgets.QMainWindow):
         self.slider_ax.set_ylabel('Y [m]', labelpad=10)
         self.slider_ax.set_zlabel(self.response_type, labelpad=10)
 
-        # Ensure the plot is redrawn
         self.slider_fig.canvas.draw()
 
     def plot_slider_response(self):
@@ -633,6 +637,31 @@ class Plots3DResults(QtWidgets.QMainWindow):
         max_rms = results[:, 1]
         self.fig = plot_max_abs_total_response(x, y, max_accelerations, self.response_type, True, max_rms)
         self.fig.suptitle('Max Acceleration RMS')
+        self.canvas = FigureCanvasQTAgg(self.fig)
+        self.canvas_screen.addWidget(self.canvas)
+        self.empty_canvas_layout.setLayout(self.canvas_screen)
+
+    def _r_values_button(self):
+        self.response_modes.setChecked(False)
+        self.response_total.setChecked(True)
+        self.canvas_screen.removeWidget(self.canvas)
+        self.slider.setValue(0)
+        self.menu_tab.setEnabled(False)
+        self.slider.setEnabled(False)
+        self.plot_slider.setChecked(False)
+        self.slider_values_calculated = False
+        self.canvas.deleteLater()
+        self.response_type = '[-]'
+        x, y = get_cord()
+        results = np.array([
+            self.max_acceleration_at_point(xi, yi, False, True, True)
+            for xi, yi in zip(x.flatten(), y.flatten())
+        ])
+        # max_accelerations = results[:, 0]
+        max_rms = results[:, 1]
+        max_rms = max_rms/0.005 # aRMS/0.005
+        self.fig = plot_max_abs_total_response(x, y, max_rms, "[-]", False, False)
+        self.fig.suptitle('R values')
         self.canvas = FigureCanvasQTAgg(self.fig)
         self.canvas_screen.addWidget(self.canvas)
         self.empty_canvas_layout.setLayout(self.canvas_screen)
