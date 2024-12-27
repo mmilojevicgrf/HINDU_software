@@ -1,7 +1,6 @@
 pandas
 matplotlib
 numpy
-openpyxl
 pyside6
 scipy
 pyqtgraph

@@ -1,6 +1,7 @@
 import numpy as np
 from matplotlib.figure import Figure
-
+from matplotlib.gridspec import GridSpec
+import matplotlib.pyplot as plt
 
 def newmark_int(time, force, u0, udot0, mass, stiffness, damp):
 
@@ -214,7 +215,9 @@ class LffResponse:
                     else:
                         ms = mode_shape[mode-1]
                         for node in range(len(t)):
-                            modescale[counter][node] = ms(path[0][node], path[1][node])
+                            x_coord = path[0][node]
+                            y_coord = path[1][node]
+                            modescale[counter][node] = ms((x_coord, y_coord))  # Ensure tuple format
                             modal_force[harmonic][node] = force.force[harmonic][node] * modescale[counter][node]
                         [y[harmonic][counter][:], ydot[harmonic][counter][:], y2dot[harmonic][counter][:]] = \
                             newmark_int(t, modal_force[harmonic][:], y0, ydot0, floor.modal_mass[mode-1], floor.modal_stiffness[mode-1],
@@ -300,6 +303,7 @@ class HffResponse:
             self.displacement_harm[0][:][:] = y
             self.velocity_harm[0][:][:] = ydot
             self.acceleration_harm[0][:][:] = y2dot
+            print(self.acceleration_harm[0][:][:])
 
 
 class Stana:
@@ -366,18 +370,12 @@ class ModalAnalysis:
         self.velocity_harm = response.velocity_harm
         self.acceleration_harm = response.acceleration_harm
 
-
 class Response:
 
     def __init__(self, y, mode_shape_value):
 
         nmodes = len(mode_shape_value)
-
-        if len(y[0]) > 100:
-
-            n = len(y[0])
-        else:
-            n = len(y[1])
+        n = len(y[0])
 
         self.mode_response = np.zeros((nmodes, n))
         for mode in range(nmodes):
@@ -398,6 +396,77 @@ class Velocity(Response):
 
 class Acceleration(Response):
     pass
+
+
+# def plot_max_abs_mode_response(x, y, max_accelerations, modes, type_to_plot):
+#     fig = plt.figure()
+#     ax = fig.add_subplot(111, projection='3d')
+#     max_accelerations_matrix = np.array(max_accelerations)
+#     for i, mode in enumerate(modes):
+#         ax.plot_trisurf(x.flatten(), y.flatten(), max_accelerations_matrix[:, mode - 1, 0], label="MODE " + str(mode))
+#     ax.set_zlabel(type_to_plot)
+#     #ax.legend(loc='upper left', bbox_to_anchor=(0.05, 0.95), fontsize='small')
+#     return fig
+
+def plot_max_abs_mode_response(x, y, max_accelerations, modes, type_to_plot):
+    fig = plt.figure(figsize=(15, 15))  # Adjust figure size as needed
+    gs = GridSpec(2, 1, height_ratios=[1, 0.3])  # Create grid layout for plot and legend
+    ax = fig.add_subplot(gs[0], projection='3d')
+    max_accelerations_matrix = np.array(max_accelerations)
+    for i, mode in enumerate(modes):
+        ax.plot_trisurf(x.flatten(), y.flatten(), max_accelerations_matrix[:, mode - 1, 0], label="MODE " + str(mode))
+    ax.set_zlabel(type_to_plot)
+    ax_legend = fig.add_subplot(gs[1])
+    ax_legend.axis('off')
+    handles, labels = ax.get_legend_handles_labels()
+    num_modes = len(modes)
+    num_cols = 3
+    num_rows = (num_modes + num_cols - 1) // num_cols
+    legend = ax_legend.legend(handles, labels, loc='center', fontsize='small', ncol=num_cols)
+    ax_legend.set_xlim(0, 1)
+    ax_legend.set_ylim(0, 1)
+    ax_legend.set_aspect('auto', adjustable='box')
+
+    plt.subplots_adjust(hspace=0.4)
+
+    return fig
+
+def plot_max_abs_all_response(x, y, max_accelerations, modes, total_accelerations, type_to_plot):
+    fig = plt.figure(figsize=(15, 15))  # Adjust figure size as needed
+    gs = GridSpec(2, 1, height_ratios=[1, 0.3])  # Create grid layout for plot and legend
+    ax = fig.add_subplot(gs[0], projection='3d')
+    ax.plot_trisurf(x.flatten(), y.flatten(), total_accelerations, label="Total response")
+    max_accelerations_matrix = np.array(max_accelerations)
+    for i, mode in enumerate(modes):
+        ax.plot_trisurf(x.flatten(), y.flatten(), max_accelerations_matrix[:, mode - 1, 0], label="MODE " + str(mode))
+    ax.set_zlabel(type_to_plot)
+    ax_legend = fig.add_subplot(gs[1])
+    ax_legend.axis('off')
+    handles, labels = ax.get_legend_handles_labels()
+    num_modes = len(modes) + 1
+    num_cols = 3
+    num_rows = (num_modes + num_cols - 1) // num_cols
+    legend = ax_legend.legend(handles, labels, loc='center', fontsize='small', ncol=num_cols)
+    ax_legend.set_xlim(0, 1)
+    ax_legend.set_ylim(0, 1)
+    ax_legend.set_aspect('auto', adjustable='box')
+
+    plt.subplots_adjust(hspace=0.4)
+
+    return fig
+
+
+def plot_max_abs_total_response(x, y, max_to_plot, type_to_plot, plot_rms, rms):
+    fig = Figure()
+    ax = fig.add_subplot(projection='3d')
+    ax.plot_trisurf(x, y, max_to_plot, cmap='jet')
+    if plot_rms and type_to_plot != 'Z [m]':
+        ax.plot_trisurf(x, y, rms, cmap='inferno')
+    ax.set_xlabel('X [m]', labelpad=10)
+    ax.set_ylabel('Y [m]', labelpad=10)
+    ax.set_zlabel(type_to_plot, labelpad=10)
+    ax.legend(loc='upper left', bbox_to_anchor=(0.05, 0.95), fontsize='small')
+    return fig
 
 
 def plot_total_response(type, response, time):
@@ -430,7 +499,7 @@ def plot_mode_response(type, response, time, modes):
     for mode in modes:
         a.plot(time, response.mode_response[counter][:], label="MODE " + str(mode))
         counter = counter + 1
-    a.legend()
+    #a.legend(bbox_to_anchor=(1.05,1), loc='upper left', borderaxespad=0)
 
     # a.xlabel('Time [s]', fontsize=24, **font)
     # a.ylabel(type, fontsize=24, **font)
@@ -453,7 +522,7 @@ def plot_all_response(type, response, time, modes):
     for mode in modes:
         a.plot(time, response.mode_response[counter][:], label="MODE " + str(mode))
         counter = counter + 1
-    a.legend()
+    a.legend(loc='upper left', bbox_to_anchor=(0.05, 0.95), fontsize='small')
 
     # a.xlabel('Time [s]', fontsize=24, **font)
     # a.ylabel(type, fontsize=24, **font)
@@ -478,7 +547,7 @@ def plot_rms_response(type, response, time, rms):
     a = fig.add_subplot()
     a.plot(time, response.total_response, label="Total response")
     a.plot(rms.time, rms.moving_average, label=label_rms)
-    a.legend()
+    a.legend(loc='upper left', bbox_to_anchor=(0.05, 0.95), fontsize='small')
 
     # a.xlabel('Time [s]', fontsize=24, **font)
     # a.ylabel(type, fontsize=24, **font)
@@ -494,39 +563,30 @@ class MovingAverage1s:
     def __init__(self, a, t, mode_scale):
 
         number_of_harmonics = len(a)
-
-        nmodes = len(a[1])
+        nmodes = len(a[0])
 
         a_harm = np.zeros((number_of_harmonics, len(t)))
-
-        for harmonic in range(number_of_harmonics):
-            for mode in range(nmodes):
-                a_harm[harmonic][:] = a_harm[harmonic][:] + a[harmonic][mode][:] * mode_scale[mode]
+        for mode in range(nmodes):
+            a_harm += a[:, mode, :] * mode_scale[mode]
 
         time = 1
         dt = t[1] - t[0]
-        n = int(len(t) - time / dt)  # broj rms-a koje se mogu izvesti
+        n = int(len(t) - time / dt)
 
-        acc = np.zeros((number_of_harmonics, int(time / dt + 1)))  # vektor ubrzanja u okviru perioda T za sve harmonike
-        average_harmonic = np.zeros((number_of_harmonics, n))  # moving average za sve harmonike
+        acc = np.zeros((number_of_harmonics, int(time / dt + 1)))
+        average_harmonic = np.zeros((number_of_harmonics, n))
         time_vector = np.zeros((number_of_harmonics, n))
 
         for harmonic in range(number_of_harmonics):
             for i in range(n):
-                # PROVERITI SA MARIJOM DA LI SE DOBIJAJU ISTE VREDNOSTI
-                # for j in range(len(acc[1])):
-                #     acc[harmonic][j] = a_harm[harmonic][i + j - 1]
-                acc[harmonic] = a_harm[harmonic, i: i + len(acc[1])]
-                average_harmonic[harmonic][i] = np.sqrt(np.mean(acc[harmonic][:] ** 2))
-                time_vector[harmonic][i] = t[i]
+                acc[harmonic] = a_harm[harmonic, i:i + len(acc[0])]
+                average_harmonic[harmonic, i] = np.sqrt(np.mean(acc[harmonic] ** 2))
+                time_vector[harmonic, i] = t[i]
 
-        average = np.zeros(n)
+        moving_average = np.sqrt(np.sum(average_harmonic ** 2, axis=0))
 
-        for harmonic in range(number_of_harmonics):
-            average = average + (average_harmonic[harmonic][:]) ** 2
-
-        self.moving_average = np.sqrt(average)
-        self.time = time_vector[0][:]
+        self.moving_average = moving_average
+        self.time = time_vector[0]
 
 
 class MovingAverage1step:

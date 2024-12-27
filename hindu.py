@@ -1,9 +1,25 @@
 import math
-from scipy.interpolate import LinearNDInterpolator
-# from matplotlib import cm
+from PySide6 import QtWidgets
+from scipy.spatial import KDTree
+from table_window import TableWindow
+from scipy.interpolate import RegularGridInterpolator
 from hindu_calculation import *
+
 np.seterr(divide='ignore')
-import matplotlib.pyplot as plt
+XCoord = None
+YCoord = None
+
+
+def get_cord():
+    return globals()["Xcoord"], globals()["Ycoord"]
+
+
+def read_experimental_files(filepath):
+    uff_files_series = filepath[filepath.str.endswith(".uff")]
+    uff_files = uff_files_series.tolist()
+    svs_files_series = filepath[filepath.str.endswith(".svs")]
+    svs_files = svs_files_series.tolist()
+    return uff_files, svs_files
 
 
 def read_files(filepath):
@@ -11,13 +27,13 @@ def read_files(filepath):
     rpt_files = rpt_files_series.tolist()
     dat_files_series = filepath[filepath.str.endswith(".dat")]
     dat_files = dat_files_series.tolist()
-    if len(dat_files) > 1 :
+    if len(dat_files) > 1:
         print(f"More than one .dat file loaded! .dat files: {dat_files} ")
     dat_file = dat_files[0]
     return dat_file, rpt_files, str(dat_file)
 
-def floor_geometry(NNode, rpt_file):
 
+def floor_geometry(NNode, rpt_file):
     rpt = open(rpt_file, "r")
     rpt_lines = rpt.read().splitlines()
     rpt.close()
@@ -28,19 +44,30 @@ def floor_geometry(NNode, rpt_file):
         coordinates[node, 0] = float(line[2])
         coordinates[node, 1] = float(line[3])
 
-    Xcoord = coordinates[:, 0]
-    Ycoord = coordinates[:, 1]
+    globals()["Xcoord"] = coordinates[:, 0]
+    globals()["Ycoord"] = coordinates[:, 1]
 
-    # print(Xcoord)
-    # print(Ycoord)
-    # print(NNode)
-    # print(rpt_file)
+    return globals()["Xcoord"], globals()["Ycoord"]
 
-    return Xcoord, Ycoord
+
+def floor_geometry_experimental(NNode, uff_file):
+    uff = open(uff_file, "r")
+    uff_lines = uff.read().splitlines()
+    uff.close()
+
+    coordinates = np.zeros((NNode, 2))
+    for node in range(NNode):
+        line = ''.join(uff_lines[2 + node]).split()
+        coordinates[node, 0] = float(line[4]) / 100
+        coordinates[node, 1] = float(line[5]) / 100
+
+    globals()["Xcoord"] = coordinates[:, 0]
+    globals()["Ycoord"] = coordinates[:, 1]
+
+    return globals()["Xcoord"], globals()["Ycoord"]
 
 
 def modal_characteristics(dat_file, rpt_files):
-
     dat_file = open(dat_file, "r")
     rows = dat_file.read().splitlines()
     dat_file.close()
@@ -79,31 +106,149 @@ def modal_characteristics(dat_file, rpt_files):
 
     return NNode, freq, mmodal, m_shapes
 
+def modal_characteristics_experimental(uff_files, svs_files):
+    NModes = len(svs_files)
+    svs_file = svs_files[0]
+    with open(svs_file, 'r') as file:
+        for num, line in enumerate(file, 1):
+            if 'MODE SHAPE' in line:
+                n_line_mode_shape = num + 1
+            if 'END MODE DEFINITION' in line:
+                n_line_end_mode_definition = num - 1
+    NNode = int(n_line_end_mode_definition - n_line_mode_shape)
+    m_shapes_from_svs = np.zeros((NModes, NNode))
+    normalized_m_shapes = np.zeros((NModes, NNode))
+    phase_array = np.zeros((NModes, NNode))
+    mmodal = np.zeros(NModes)
+    freq = np.zeros(NModes)
+    table_window = TableWindow(len(svs_files))
+    mmodal_experimental = table_window.get_modal_masses()
+    for mode, mode_file in enumerate(svs_files):
+        with open(mode_file, "r") as svs:
+            svs_lines = svs.read().splitlines()
+        freq_line = ''.join(svs_lines[17]).split()
+        freq[mode] = float(freq_line[0])
+        for node in range(NNode):
+            line = ''.join(svs_lines[23 + node]).split()
+            m_shapes_from_svs[mode][node] = float(line[5])
+            phase_array[mode][node] = float(line[6])
+        if mode != 0: # TODO Ovo je namesteno da bi se eksperimentalni podaci poklopili sa numerickim !!! potreban uvid
+            sign_phase_array = np.cos(phase_array[mode])
+        else:
+            sign_phase_array = np.sin(phase_array[mode])
+        m_shapes = m_shapes_from_svs[mode] * sign_phase_array
+        max_val = np.max(np.abs(m_shapes))
+        if max_val != 0:
+            normalized_m_shapes[mode] = m_shapes / max_val
+        mmodal[mode] = mmodal_experimental[mode]
+
+    return NNode, freq, mmodal, normalized_m_shapes
+
 
 class Floor:
-
     """Klasa Floor sadrzi sve geometrijske i materijalne karakteristike tavanice ucitane iz Abaqusa"""
 
-    def __init__(self, dat_file, rpt_files):
-
-        self.NNode, self.frequency, self.modal_mass, self.m_shapes = modal_characteristics(dat_file, rpt_files)
-        self.x_coord, self.y_coord = floor_geometry(self.NNode, rpt_files[0])
+    def __init__(self, uff_or_dat_file, svs_or_rpt_files, experimental):
+        if experimental:
+            self.NNode, self.frequency, self.modal_mass, self.m_shapes = modal_characteristics_experimental(
+                uff_or_dat_file, svs_or_rpt_files)
+            self.x_coord, self.y_coord = floor_geometry_experimental(self.NNode, uff_or_dat_file[0])
+        else:
+            self.NNode, self.frequency, self.modal_mass, self.m_shapes = modal_characteristics(uff_or_dat_file,
+                                                                                               svs_or_rpt_files)
+            self.x_coord, self.y_coord = floor_geometry(self.NNode, svs_or_rpt_files[0])
         self.modal_stiffness = (2 * np.pi * self.frequency) ** 2 * self.modal_mass
+        self.xy = np.column_stack((self.x_coord, self.y_coord))
+        self.values = self.m_shapes
+        self.use_regular_grid_interpolator = self._is_regular_grid()
 
-    def mode_shape_value(self, mode_number, point):  # vrednost mode shape - a u tacki
+        if not self.use_regular_grid_interpolator:
+            self.kd_tree = KDTree(self.xy)
 
-        xy = np.column_stack((self.x_coord, self.y_coord))
-        mode = LinearNDInterpolator(xy, self.m_shapes[mode_number][:])
-        return mode(point[0], point[1])
+    def _is_regular_grid(self):
+        unique_x = np.unique(self.x_coord)
+        unique_y = np.unique(self.y_coord)
+        return len(unique_x) == len(unique_y)
 
-    def mode_shapes_function(self, mode_number):  # funkcija oblika oscilovanja
+    def mode_shape_value(self, mode_number, point):
+        values = self.values[mode_number]
+        if self.use_regular_grid_interpolator:
+            x_unique = np.unique(self.x_coord)
+            y_unique = np.unique(self.y_coord)
+            grid_values = values.reshape(len(x_unique), len(y_unique))
+            interpolator = RegularGridInterpolator((x_unique, y_unique), grid_values)
+            return interpolator(point)
+        else:
+            dist, idx = self.kd_tree.query(point)
+            return values[idx]
 
-        xy = np.column_stack((self.x_coord, self.y_coord))
-        mode = LinearNDInterpolator(xy, self.m_shapes[mode_number][:])
-        return mode
+    def mode_shapes_function(self, mode_number):
+        values = self.values[mode_number]
+
+        if self.use_regular_grid_interpolator:
+            x_unique = np.unique(self.x_coord)
+            y_unique = np.unique(self.y_coord)
+            grid_values = values.reshape(len(x_unique), len(y_unique))
+            interpolator = RegularGridInterpolator((x_unique, y_unique), grid_values)
+            return interpolator
+        else:
+            def interpolator(point):
+                dist, idx = self.kd_tree.query(point)
+                return values[idx]
+            return interpolator
+
+# class Floor:
+#     """Klasa Floor sadrzi sve geometrijske i materijalne karakteristike tavanice ucitane iz Abaqusa"""
+#
+#     def __init__(self, uff_or_dat_file, svs_or_rpt_files, experimental):
+#         if experimental:
+#             self.NNode, self.frequency, self.modal_mass, self.m_shapes, self.damp = modal_characteristics_experimental(
+#                 uff_or_dat_file, svs_or_rpt_files)
+#             self.x_coord, self.y_coord = floor_geometry_experimental(self.NNode, uff_or_dat_file[0])
+#         else:
+#             self.NNode, self.frequency, self.modal_mass, self.m_shapes = modal_characteristics(uff_or_dat_file,
+#                                                                                                svs_or_rpt_files)
+#             self.x_coord, self.y_coord = floor_geometry(self.NNode, svs_or_rpt_files[0])
+#
+#         self.modal_stiffness = (2 * np.pi * self.frequency) ** 2 * self.modal_mass
+#         self.xy = np.column_stack((self.x_coord, self.y_coord))
+#         self.values = self.m_shapes
+#         self.use_regular_grid_interpolator = self._is_regular_grid()
+#
+#     def _is_regular_grid(self):
+#         unique_x = np.unique(self.x_coord)
+#         unique_y = np.unique(self.y_coord)
+#         return len(unique_x) == len(unique_y)
+#
+#     def mode_shape_value(self, mode_number, point):
+#         values = self.values[mode_number]
+#         if self.use_regular_grid_interpolator:
+#             x_unique = np.unique(self.x_coord)
+#             y_unique = np.unique(self.y_coord)
+#             grid_values = values.reshape(len(x_unique), len(y_unique))
+#             interpolator = RegularGridInterpolator((x_unique, y_unique), grid_values)
+#             return interpolator(point)
+#         else:
+#             # Use griddata for interpolation
+#             return griddata(self.xy, values.flatten(), point, method='linear')
+#
+#     def mode_shapes_function(self, mode_number):
+#         values = self.values[mode_number]
+#
+#         if self.use_regular_grid_interpolator:
+#             x_unique = np.unique(self.x_coord)
+#             y_unique = np.unique(self.y_coord)
+#             grid_values = values.reshape(len(x_unique), len(y_unique))
+#             interpolator = RegularGridInterpolator((x_unique, y_unique), grid_values)
+#             return interpolator
+#         else:
+#             def interpolator(point):
+#                 return griddata(self.xy, values.flatten(), point, method='linear')
+#
+#             return interpolator
+
 
     def plot(self, mode_number):
-
         mshape_to_plot = self.m_shapes[mode_number]
         fig = Figure()
         a = fig.add_subplot(1, 1, 1, projection='3d')
@@ -112,7 +257,6 @@ class Floor:
         return fig
 
     def geometry(self):
-
         fig = plt.figure()
         a = fig.add_subplot()
 
@@ -131,7 +275,6 @@ class Floor:
         return fig, a
 
     def mode_scale(self, modes, recipient):
-
         ModeScale = np.zeros(len(modes))
         counter = 0
 
@@ -143,7 +286,6 @@ class Floor:
 
 
 class Path:
-
     """Klasa Path racuna pravolinijsku putanju pesaka definisanu pocetnom i krajnjom tackom"""
 
     def __init__(self, start, finish):
@@ -171,15 +313,15 @@ class Path:
 
         else:
             if (finish[1] - start[1]) > 0:
-                self.angle = np.pi/2
+                self.angle = np.pi / 2
             else:
-                self.angle = 3 * np.pi/2
+                self.angle = 3 * np.pi / 2
 
     def lff_path(self, vp, t):
 
         path = np.zeros((2, len(t)))  # Putanja pesaka definisana u svakoj tacki vremenskog inkrementa
         path[0][:] = self.start[0] + vp * t * np.cos(self.angle)
-        path[1][:] = self. start[1] + vp * t * np.sin(self.angle)
+        path[1][:] = self.start[1] + vp * t * np.sin(self.angle)
 
         return path
 
@@ -215,7 +357,6 @@ def time_vector(length, speed, dt):
 
 
 def floor_type(force_model, f1):
-
     if force_model == "Kerr" or force_model == "Rainer":
         limit_frequency = 10
     elif force_model == "Arup":
@@ -236,7 +377,6 @@ def floor_type(force_model, f1):
 
 
 def foot_path(flr_type, path, pedestrian, t):
-
     if flr_type == "LFF":
         footpath = path.lff_path(pedestrian.speed, t)
     elif flr_type == "HFF":
@@ -250,7 +390,6 @@ def foot_path(flr_type, path, pedestrian, t):
 
 
 def calculation(floor, force_input, zetta, start, finish, modes, fp, Go, stepLength, dt):
-
     path = Path(start, finish)
     pedestrian = Pedestrian(fp, Go, stepLength)
 
@@ -285,5 +424,5 @@ f = Floor(dat_file, rpt_files)
 print(f.mmodal)
 """
 
-#putanja = "C:\\Users\\Nikola Lakic\\Desktop\\Monolitna"
-#print(read_files(putanja))
+# putanja = "C:\\Users\\Nikola Lakic\\Desktop\\Monolitna"
+# print(read_files(putanja))
